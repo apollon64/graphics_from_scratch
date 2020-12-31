@@ -1,5 +1,6 @@
 #include "func.h"
 
+#include <math.h>
 #include "display.h"
 //extern uint32_t *color_buffer;
 //extern int window_width;
@@ -34,26 +35,21 @@ void setpix(int x, int y, uint32_t color)
 
 void draw_rect(int x, int y, int width, int height, uint32_t color)
 {
-    /*
     if (width < 1 || height < 1) return;
     if (x >= window_width || y >= window_height) return;
+    int endx = x+width;
+    int endy = y+height;
+    if (endx <= 0 || endy <= 0) return;
     int startx = clamp(x, 0, window_width-1);
     int starty = clamp(y, 0, window_height-1);
-    int endx = startx+width;
-    int endy = starty+height;
-    if (endx <= 0 || endy <= 0) return;
     endx = clamp(endx, 0, window_width-1);
     endy = clamp(endy, 0, window_height-1);
-    */
-    int startx=x;
-    int starty=y;
-    int endx=x+width;
-    int endy=y+height;
     for(int cx=startx; cx<endx; cx++)
         for(int cy=starty; cy<endy; cy++)
         {
-            setpix(cx,cy,color);
-            //color_buffer[cy*window_width+cx] = color;
+          //if (cx<0 || cy <0 || cx>=window_width || cy >= window_height)
+          //{ SDL_Log("draw_rect oob"); abort(); }
+          color_buffer[cy*window_width+cx] = color;
         }
 }
 
@@ -95,13 +91,7 @@ void circle(int x, int y, int r)
     }
 }
 
-static int abs(int v)
-{
-    if (v >= 0) return v;
-    return -v;
-}
-
-void line(int x0, int y0, int x1, int y1, uint32_t color)
+void draw_line(int x0, int y0, int x1, int y1, uint32_t color)
 {
     if ( abs(x1-x0) == 0 && abs(y1-y0) == 0 ) return;
     int dx = abs(x1-x0), sx = x0<x1 ? 1 : -1;
@@ -122,4 +112,36 @@ void line(int x0, int y0, int x1, int y1, uint32_t color)
         }
     }
 
+}
+
+float myRound(float v)
+{
+  int i = (int) v;
+  if (v-i > 0.5) return i+1;
+  return i;
+}
+
+void draw_line_dda(int x0, int y0, int x1, int y1, uint32_t color)
+{
+    int delta_x = x1-x0;
+    int delta_y = y1-y0;
+    if ( abs(delta_x) == 0 && abs(delta_y) == 0 ) return;
+
+    int side_len = abs(delta_x) > abs(delta_y) ? abs(delta_x) : abs(delta_y);
+    float x_inc = delta_x / (float)side_len;
+    float y_inc = delta_y / (float)side_len;
+    float cx = x0;
+    float cy = y0;
+    for(int i=0; i<=side_len; i++) {
+        setpix( round(cx), round(cy), color);
+        cx += x_inc;
+        cy += y_inc;
+    }
+}
+
+void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color)
+{
+  draw_line(x0,y0,x1,y1,color);
+  draw_line(x1,y1,x2,y2,color);
+  draw_line(x2,y2,x0,y0,color);
 }

@@ -9,4 +9,6 @@ void setpix(int x, int y, uint32_t color);
 void draw_rect(int x, int y, int width, int height, uint32_t color);
 void draw_grid(void);
 void circle(int x, int y, int r);
-void line(int x0, int y0, int x1, int y1, uint32_t color);
+void draw_line(int x0, int y0, int x1, int y1, uint32_t color);
+void draw_line_dda(int x0, int y0, int x1, int y1, uint32_t color);
+void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color);
