@@ -10,6 +10,7 @@
 #include "display.h"
 #include "vector.h"
 #include "mesh.h"
+#include "array.h"
 
 // Review of structs
 typedef struct {
@@ -18,7 +19,7 @@ typedef struct {
     float fov_angle;
 } camera_t;
 
-triangle_t triangles_to_render[N_MESH_FACES];
+triangle_t *triangles_to_render = NULL;
 
 camera_t camera = {
     {0,0,-5.f},
@@ -125,6 +126,9 @@ void update(void) {
     if (time_to_wait > 0 && time_to_wait <= FRAME_TARGET_TIME) SDL_Delay(time_to_wait);
     previous_frame_time = SDL_GetTicks();
 
+    // Initialize the array of triangles to render
+    triangles_to_render = NULL;
+
     time += 0.01;
     cube_rotation.x += 0.01;
     cube_rotation.y += 0.01;
@@ -163,7 +167,8 @@ void update(void) {
         }
 
         // Save the projected triangle in the array of triangles to render
-        triangles_to_render[i] = projected_triangle;
+        //triangles_to_render[i] = projected_triangle;
+        array_push(triangles_to_render, projected_triangle);
     }
 }
 
@@ -188,7 +193,8 @@ void render(void) {
 
     // Loop all projected triangles and render them
     uint32_t color = 0xFFFFFF00;
-    for (int i = 0; i < N_MESH_FACES; i++) {
+    int num_tris = array_length(triangles_to_render);
+    for (int i = 0; i < num_tris; i++) {
         triangle_t triangle = triangles_to_render[i];
         int h = 4;
         draw_rect(triangle.points[0].x-h, triangle.points[0].y-h, 8, 8, color);
@@ -197,6 +203,9 @@ void render(void) {
 
         draw_triangle(triangle.points[0].x, triangle.points[0].y, triangle.points[1].x, triangle.points[1].y, triangle.points[2].x, triangle.points[2].y, color);
     }
+
+    // Clear the array of triangles to render every frame loop
+    array_free(triangles_to_render);
 
     render_color_buffer();
 }
