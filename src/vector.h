@@ -29,45 +29,28 @@ typedef struct {
     float m03,m13,m23,m33;
 } mat4_t;
 
-vec3_t vec3_rotate_x(vec3_t v, float a);
-vec3_t vec3_rotate_y(vec3_t v, float a);
-vec3_t vec3_rotate_z(vec3_t v, float a);
-/*
-mat4 scaleMatrix(x,y,z)
-// axis x,y,z
-// yaw pitch roll
-mat4 rotationMatrix(vec3 axis)
-mat4 translationMatrix(vec3 translation)
+////////////////////////////////////////////////////////////////////////////////
+// Vector 2D functions
+////////////////////////////////////////////////////////////////////////////////
+float vec2_length(vec2_t v);
+vec2_t vec2_add(vec2_t a, vec2_t b);
+vec2_t vec2_sub(vec2_t a, vec2_t b);
+vec2_t vec2_mul(vec2_t v, float factor);
+vec2_t vec2_div(vec2_t v, float factor);
 
-multiply3x3(mat3 a, mat3 b)
-multiply4x4(mat4 a, mat4 b)
-transformVec3Mat3(mat3 m, vec3 v)
-transformVec4Mat4(mat4 m, vec4 v)
-sine,
-cosine,
-tangent
-SOH CAH TOA
-*/
+////////////////////////////////////////////////////////////////////////////////
+// Vector 3D functions
+////////////////////////////////////////////////////////////////////////////////
+float vec3_length(vec3_t v);
+vec3_t vec3_add(vec3_t a, vec3_t b);
+vec3_t vec3_sub(vec3_t a, vec3_t b);
+vec3_t vec3_mul(vec3_t v, float factor);
+vec3_t vec3_div(vec3_t v, float factor);
+vec3_t vec3_cross(vec3_t a, vec3_t b);
+float vec3_dot(vec3_t a, vec3_t b);
+void vec3_normalize(vec3_t* a);
 
-//[ ca -sa] |x|
-//[ sa ca ] |y|
-
-/*
-mat2_t createRotation2D(float a)
-{
-  float ca = cos(a);
-  float sa = sin(a);
-  a.m00 = ca;
-  a.m10 = -sa;
-  a.m01 = sa;
-  a.m11 = ca;
-}
-
-vec2 rotate2D(vec2 v, float b)
-{
-  // the angle additional form for sine
-  x' = v.x*cos(b) - v.y*sin(b);
-  y' = v.x*sin(b) + v.y*cos(b);
-}
-*/
+vec3_t vec3_rotate_x(vec3_t v, float angle);
+vec3_t vec3_rotate_y(vec3_t v, float angle);
+vec3_t vec3_rotate_z(vec3_t v, float angle);
 #endif

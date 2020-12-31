@@ -7,9 +7,9 @@
 #include "array.h"
 
 mesh_t mesh = {
-  .vertices = NULL,
-  .faces = NULL,
-  .rotation = {0,0,0}
+    .vertices = NULL,
+    .faces = NULL,
+    .rotation = {0,0,0}
 
 };
 
@@ -46,18 +46,23 @@ face_t cube_faces[N_CUBE_FACES] = {
 };
 
 void load_cube_mesh_data(void) {
-  for (int i = 0; i < N_CUBE_VERTICES; i++) {
-    array_push(mesh.vertices, cube_vertices[i]);
-  }
-  for (int i = 0; i < N_CUBE_FACES; i++) {
-    array_push(mesh.faces, cube_faces[i]);
-  }
+    for (int i = 0; i < N_CUBE_VERTICES; i++) {
+        array_push(mesh.vertices, cube_vertices[i]);
+    }
+    for (int i = 0; i < N_CUBE_FACES; i++) {
+        array_push(mesh.faces, cube_faces[i]);
+    }
 }
 
 
-void load_obj_file_data(char* filename) {
+void load_obj_file_data(const char* filename) {
     FILE* file;
     file = fopen(filename, "r");
+    if (!file)
+    {
+        fprintf(stderr, "could not open file %s", filename);
+        return;
+    }
     char line[1024];
 
     while (fgets(line, 1024, file)) {
@@ -86,4 +91,5 @@ void load_obj_file_data(char* filename) {
             array_push(mesh.faces, face);
         }
     }
+    fclose(file);
 }
