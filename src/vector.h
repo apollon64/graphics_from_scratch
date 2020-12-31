@@ -2,20 +2,20 @@
 #define VECTOR_H
 
 typedef struct {
-  float x,y;
+    float x,y;
 } vec2_t;
 
 typedef struct {
-  float x,y,z;
+    float x,y,z;
 } vec3_t;
 
 typedef struct {
-  float x,y,z,w;
+    float x,y,z,w;
 } vec4_t;
 
 typedef struct {
-  float m00,m10;
-  float m01,m11;
+    float m00,m10;
+    float m01,m11;
 } mat2_t;
 /*
 typedef struct {
@@ -23,10 +23,10 @@ typedef struct {
 } mat4_t;
 */
 typedef struct {
-  float m00,m10,m20,m30;
-  float m01,m11,m21,m31;
-  float m02,m12,m22,m32;
-  float m03,m13,m23,m33;
+    float m00,m10,m20,m30;
+    float m01,m11,m21,m31;
+    float m02,m12,m22,m32;
+    float m03,m13,m23,m33;
 } mat4_t;
 
 vec3_t vec3_rotate_x(vec3_t v, float a);
