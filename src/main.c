@@ -26,7 +26,6 @@ camera_t camera = {
     {0.3, -2.0, 0.0},
     0.78
 };
-vec3_t cube_rotation = { .x = 0, .y = 0, .z = 0 };
 double time = 0;
 
 float fov_factor = 640;
@@ -40,7 +39,8 @@ struct mouse_t {
 
 void setup(void) {
     time = 0.0;
-
+    //load_cube_mesh_data();
+    load_obj_file_data("./assets/f22.obj");
 }
 
 vec2_t project(vec3_t point) {
@@ -130,18 +130,20 @@ void update(void) {
     triangles_to_render = NULL;
 
     time += 0.01;
-    cube_rotation.x += 0.01;
-    cube_rotation.y += 0.01;
-    cube_rotation.z += 0.01;
+    mesh.rotation.x += 0.01;
+    mesh.rotation.y += 0.01;
+    mesh.rotation.z += 0.01;
+
 
     // Loop all triangle faces of our mesh
-    for (int i = 0; i < N_MESH_FACES; i++) {
-        face_t mesh_face = mesh_faces[i];
+    int n_faces = array_length(mesh.faces);
+    for (int i = 0; i < n_faces; i++) {
+        face_t mesh_face = mesh.faces[i];
 
         vec3_t face_vertices[3];
-        face_vertices[0] = mesh_vertices[mesh_face.a - 1]; // Minus 1 because mesh vertices start from 1.
-        face_vertices[1] = mesh_vertices[mesh_face.b - 1];
-        face_vertices[2] = mesh_vertices[mesh_face.c - 1];
+        face_vertices[0] = mesh.vertices[mesh_face.a - 1]; // Minus 1 because mesh vertices start from 1.
+        face_vertices[1] = mesh.vertices[mesh_face.b - 1];
+        face_vertices[2] = mesh.vertices[mesh_face.c - 1];
 
         triangle_t projected_triangle;
 
@@ -149,9 +151,9 @@ void update(void) {
         for (int j = 0; j < 3; j++) {
             vec3_t transformed_vertex = face_vertices[j];
 
-            transformed_vertex = vec3_rotate_x(transformed_vertex, cube_rotation.x);
-            transformed_vertex = vec3_rotate_y(transformed_vertex, cube_rotation.y);
-            transformed_vertex = vec3_rotate_z(transformed_vertex, cube_rotation.z);
+            transformed_vertex = vec3_rotate_x(transformed_vertex, mesh.rotation.x);
+            transformed_vertex = vec3_rotate_y(transformed_vertex, mesh.rotation.y);
+            transformed_vertex = vec3_rotate_z(transformed_vertex, mesh.rotation.z);
 
             // Translate the vertex away from the camera
             transformed_vertex.z -= camera.position.z;
@@ -172,35 +174,16 @@ void update(void) {
     }
 }
 
-void drawline(bool type, int x0, int y0, int x1, int y1,uint32_t color)
-{
-  if (type) draw_line_dda(x0,y0,x1,y1,color); else draw_line(x0,y0,x1,y1,color);
-}
-
 void render(void) {
 
     clear_color_buffer( 0xFF000000 );
     draw_grid();
-    if (mouse.left)
-      draw_rect(mouse.x-25,mouse.y-25,50,50,packColor(255,0,255) );
-
-    draw_rect(mouse.x-100,mouse.y-100,50,50,packColor(255,255,255) );
-
-    if (mouse.right)
-      draw_rect(mouse.x+50,mouse.y+50,50,50,packColor(0,0,255) );
-    //circle(50,50,50);
-    drawline(mouse.left,100,200,200,50, mouse.left ? 0xFFFF0000 : 0xFF0000FF);
 
     // Loop all projected triangles and render them
     uint32_t color = 0xFFFFFF00;
     int num_tris = array_length(triangles_to_render);
     for (int i = 0; i < num_tris; i++) {
         triangle_t triangle = triangles_to_render[i];
-        int h = 4;
-        draw_rect(triangle.points[0].x-h, triangle.points[0].y-h, 8, 8, color);
-        draw_rect(triangle.points[1].x-h, triangle.points[1].y-h, 8, 8, color);
-        draw_rect(triangle.points[2].x-h, triangle.points[2].y-h, 8, 8, color);
-
         draw_triangle(triangle.points[0].x, triangle.points[0].y, triangle.points[1].x, triangle.points[1].y, triangle.points[2].x, triangle.points[2].y, color);
     }
 
@@ -210,14 +193,16 @@ void render(void) {
     render_color_buffer();
 }
 
+void free_resources(void) {
+  free(color_buffer);
+  array_free(mesh.vertices);
+  array_free(mesh.faces);
+}
+
 int main(int argc, char *argv[])
 {
     SDL_Log("Hello courses.pikuma.com\n");
-
     is_running = init_window();
-
-    //SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,"Not an error" );
-
     setup();
     while (is_running) {
         process_input();
@@ -225,6 +210,7 @@ int main(int argc, char *argv[])
         render();
     }
     destroy_window();
-    SDL_Log("App closed. is_running=%d", is_running );
+    free_resources();
+    SDL_Log("App closed.");
     return EXIT_SUCCESS;
 }
