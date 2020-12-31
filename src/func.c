@@ -139,9 +139,87 @@ void draw_line_dda(int x0, int y0, int x1, int y1, uint32_t color)
     }
 }
 
-void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color)
+void draw_triangle_lines(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color)
 {
     draw_line(x0,y0,x1,y1,color);
     draw_line(x1,y1,x2,y2,color);
     draw_line(x2,y2,x0,y0,color);
+}
+
+typedef struct
+{
+  int x,y;
+} ivec2;
+
+void ivec2_swap(ivec2 *a, ivec2 *b)
+{
+  ivec2 tmp = *a;
+  *a = *b;
+  *b = tmp;
+}
+
+void draw_flat_bottom(int x0, int y0, int x1, int y1, ivec2 m, uint32_t color)
+{
+  int height = y1 - y0;
+  float xs = x0;
+  float xe = x0;
+  float edge_left = (x1-x0)/(float)(height);
+  float edge_right = (m.x-x0)/(float)(height);
+  for(int i=0; i<height; i++)
+  {
+     draw_line( round(xs),y0+i, round(xe),y0+i,color);
+     xs += edge_left;
+     xe += edge_right;
+  }
+
+  color = 0xFFFF0000;
+  draw_line(x0,y0,x1,y1,color);
+  draw_line(x1,y1,m.x,m.y,color);
+  draw_line(m.x,m.y,x0,y0,color);
+}
+
+void draw_flat_top(int x1, int y1, ivec2 m, int x2, int y2, uint32_t color)
+{
+  int height = y2 - y1;
+  float xs = x1;
+  float xe = m.x;
+  float edge_left = (x2-x1)/(float)(height);
+  float edge_right = (x2-m.x)/(float)(height);
+  for(int i=0; i<height; i++)
+  {
+     draw_line( round(xs),y1+i, round(xe),y1+i,color);
+     xs += edge_left;
+     xe += edge_right;
+  }
+
+  color = 0xFFFF0000;
+  draw_line(m.x,m.y,x1,y1,color);
+  draw_line(x1,y1,x2,y2,color);
+  draw_line(x2,y2,m.x,m.y,color);
+}
+
+ivec2 getMidpointPikuma(ivec2 p0, ivec2 p1, ivec2 p2)
+{
+  // Solution to the Triangle Midpoint
+  ivec2 p0p1 = {p1.x - p0.x, p1.y - p0.y};
+  ivec2 p0p2 = {p2.x - p0.x, p2.y - p0.y};
+  float mx = p0.x + (p0p2.x*p0p1.y)/(float)p0p2.y;
+  return (ivec2) {
+    .x = (int) mx,
+    .y = p1.y
+  };
+}
+
+void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color)
+{
+    ivec2 sorted[3] = { {x0,y0}, {x1,y1}, {x2,y2} };
+    if ( sorted[0].y > sorted[1].y ) ivec2_swap( &sorted[0], &sorted[1] );
+    if ( sorted[1].y > sorted[2].y ) ivec2_swap( &sorted[1], &sorted[2] );
+    if ( sorted[0].y > sorted[1].y ) ivec2_swap( &sorted[0], &sorted[1] );
+
+    ivec2 midpoint = getMidpointPikuma(sorted[0], sorted[1], sorted[2]);
+    draw_flat_bottom(sorted[0].x, sorted[0].y, sorted[1].x, sorted[1].y, midpoint, color);
+    draw_flat_top(sorted[1].x, sorted[1].y, midpoint, sorted[2].x, sorted[2].y, color);
+
+
 }

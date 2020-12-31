@@ -100,6 +100,18 @@ float vec3_dot(vec3_t a, vec3_t b) {
     return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
 }
 
+void vec2_normalize(vec2_t* a)
+{
+  float lsq = vec2_dot(*a, *a);
+  if(lsq)
+  {
+    float rlen = 1.0f / sqrt(lsq);
+    a->x *= rlen;
+    a->y *= rlen;
+  }
+}
+
+
 void vec3_normalize(vec3_t* a)
 {
   float lsq = vec3_dot(*a, *a);
