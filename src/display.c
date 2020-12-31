@@ -76,7 +76,6 @@ void render_color_buffer(void) {
     SDL_RenderCopy(renderer, color_buffer_texture, NULL, NULL);
 
     SDL_RenderPresent(renderer);
-    SDL_Delay(16);
 }
 
 void destroy_window(void)
