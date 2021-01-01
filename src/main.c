@@ -21,9 +21,11 @@ typedef struct {
 } camera_t;
 
 typedef struct {
-  vec3_t a,b;
+    vec3_t a,b;
 } line_t;
 
+bool sort_faces_by_z_enable = true;
+bool display_normals_enable = false;
 triangle_t *triangles_to_render = NULL;
 line_t* lines_to_render = NULL;
 
@@ -85,21 +87,33 @@ void process_input(void) {
             is_running = false;
             break;
         case SDL_KEYDOWN:
-          if (event.key.keysym.sym == SDLK_ESCAPE)
-              is_running = false;
-          if (event.key.keysym.sym == SDLK_1)
-              render_method = RENDER_WIRE_VERTEX;
-          if (event.key.keysym.sym == SDLK_2)
-              render_method = RENDER_WIRE;
-          if (event.key.keysym.sym == SDLK_3)
-              render_method = RENDER_FILL_TRIANGLE;
-          if (event.key.keysym.sym == SDLK_4)
-              render_method = RENDER_FILL_TRIANGLE_WIRE;
-          if (event.key.keysym.sym == SDLK_c)
-              cull_method = CULL_BACKFACE;
-          if (event.key.keysym.sym == SDLK_d)
-              cull_method = CULL_NONE;
-          break;
+            if (event.key.keysym.sym == SDLK_ESCAPE)
+                is_running = false;
+            if (event.key.keysym.sym == SDLK_1)
+                render_method = RENDER_WIRE_VERTEX;
+            if (event.key.keysym.sym == SDLK_2)
+                render_method = RENDER_WIRE;
+            if (event.key.keysym.sym == SDLK_3)
+                render_method = RENDER_FILL_TRIANGLE;
+            if (event.key.keysym.sym == SDLK_4)
+                render_method = RENDER_FILL_TRIANGLE_WIRE;
+            if (event.key.keysym.sym == SDLK_c)
+                cull_method = CULL_BACKFACE;
+            if (event.key.keysym.sym == SDLK_d)
+                cull_method = CULL_NONE;
+            if (event.key.keysym.sym == SDLK_z)
+                sort_faces_by_z_enable = true;
+            if (event.key.keysym.sym == SDLK_x)
+                sort_faces_by_z_enable = false;
+            if (event.key.keysym.sym == SDLK_n)
+                display_normals_enable = true;
+            break;
+        case SDL_KEYUP:
+        {
+            if (event.key.keysym.sym == SDLK_n)
+                display_normals_enable = false;
+            break;
+        }
         case SDL_MOUSEMOTION:
         {
             mouse.x = event.motion.x;
@@ -160,7 +174,7 @@ void update(void) {
 
     time += 0.01;
     mesh.rotation.x = 3.14;
-    mesh.rotation.y = mouse.x / (float)window_width * 3.14159;
+    mesh.rotation.y = mouse.x / (float)window_width * 2*M_PI;
     mesh.rotation.z += 0.0;
 
     lines_to_render = NULL;
@@ -207,12 +221,13 @@ void update(void) {
         }
 
         triangle_t projected_triangle;
+        projected_triangle.z = center.z;
         for (int j = 0; j < 3; j++) {
-          vec2_t projected_point = project(transformed_vertices[j]);
-          // Scale and translate the projected points to the middle of the screen
-          projected_point.x += (window_width / 2);
-          projected_point.y += (window_height / 2);
-          projected_triangle.points[j] = projected_point;
+            vec2_t projected_point = project(transformed_vertices[j]);
+            // Scale and translate the projected points to the middle of the screen
+            projected_point.x += (window_width / 2);
+            projected_point.y += (window_height / 2);
+            projected_triangle.points[j] = projected_point;
         }
 
         // Check backface culling
@@ -230,34 +245,34 @@ void update(void) {
 
         //if (cull_method == CULL_BACKFACE && front_facing)
         {
-          // Save the projected triangle in the array of triangles to render
-          if (cull_method == CULL_BACKFACE && !front_facing)
-          {
-             continue;
-          }
-          array_push(triangles_to_render, projected_triangle);
+            // Save the projected triangle in the array of triangles to render
+            if (cull_method == CULL_BACKFACE && !front_facing)
+            {
+                continue;
+            }
+            array_push(triangles_to_render, projected_triangle);
 
 
-          vec3_t start = project3d(center);
-          start.x += (window_width / 2);
-          start.y += (window_height / 2);
+            vec3_t start = project3d(center);
+            start.x += (window_width / 2);
+            start.y += (window_height / 2);
 
-          vec3_t normal = vec3_cross(
-            vec3_sub(face_vertices[1],face_vertices[0]),
-            vec3_sub(face_vertices[2],face_vertices[0])
-          );
-          normal = vec3_rotate_x(normal, mesh.rotation.x);
-          normal = vec3_rotate_y(normal, mesh.rotation.y);
-          normal = vec3_rotate_z(normal, mesh.rotation.z);
+            vec3_t normal = vec3_cross(
+                                vec3_sub(face_vertices[1],face_vertices[0]),
+                                vec3_sub(face_vertices[2],face_vertices[0])
+                            );
+            normal = vec3_rotate_x(normal, mesh.rotation.x);
+            normal = vec3_rotate_y(normal, mesh.rotation.y);
+            normal = vec3_rotate_z(normal, mesh.rotation.z);
 
-          vec3_normalize(&normal);
-          normal = vec3_mul(normal, 0.125f);
-          vec3_t end = project3d( vec3_add(center, normal) );
-          end.x += (window_width / 2);
-          end.y += (window_height / 2);
+            vec3_normalize(&normal);
+            normal = vec3_mul(normal, 0.125f);
+            vec3_t end = project3d( vec3_add(center, normal) );
+            end.x += (window_width / 2);
+            end.y += (window_height / 2);
 
-          line_t projected_line = {.a = start, .b = end};
-          array_push(lines_to_render, projected_line);
+            line_t projected_line = {.a = start, .b = end};
+            array_push(lines_to_render, projected_line);
         }
 
 
@@ -273,6 +288,34 @@ bool getWinding(float x0, float y0, float x1, float y1, float x2, float y2)
     return false;
 }
 
+
+/* this function will be used by qsort to compare elements */
+int cmp(const void *v1, const void *v2) {
+    triangle_t f1=*((triangle_t*)v1);
+    triangle_t f2=*((triangle_t*)v2);
+    if(f1.z < f2.z)
+        return -1;
+    else if(f1.z > f2.z)
+        return 1;
+    return 0;
+}
+
+int cmpLess(const void *triangleA, const void *triangleB) {
+    triangle_t a=*((triangle_t*)triangleA);
+    triangle_t b=*((triangle_t*)triangleB);
+    if(a.z > b.z)
+        return -1;
+    else if(a.z < b.z)
+        return 1;
+    return 0;
+}
+
+void sort(void)
+{
+    int num_tris = array_length(triangles_to_render);
+    qsort(triangles_to_render, num_tris, sizeof(triangle_t), cmpLess);
+}
+
 void render(void) {
 
     clear_color_buffer( 0xFF000000 );
@@ -280,9 +323,11 @@ void render(void) {
 
     vec3_t centerPos = {0,0,0};
     vec3_t camera_dir =
-    vec3_sub(camera.position, centerPos);
+        vec3_sub(camera.position, centerPos);
 
     vec3_normalize(&camera_dir);
+
+    if (sort_faces_by_z_enable) sort();
 
     // Loop all projected triangles and render them
     uint32_t color = 0xFFFFFFFF;
@@ -318,11 +363,15 @@ void render(void) {
         }
     }
 
-    color = 0xFF00FF00;
-    int num_lines = array_length(lines_to_render);
-    for (int i = 0; i < num_lines; i++) {
-        line_t line = lines_to_render[i];
-        draw_line(line.a.x, line.a.y, line.b.x, line.b.y, color);
+    if (display_normals_enable)
+    {
+        color = 0xFF00FF00;
+        int num_lines = array_length(lines_to_render);
+        for (int i = 0; i < num_lines; i++) {
+            line_t line = lines_to_render[i];
+            draw_line(line.a.x, line.a.y, line.b.x, line.b.y, color);
+        }
+
     }
 
 

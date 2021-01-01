@@ -11,6 +11,7 @@ typedef struct {
 
 typedef struct {
     vec2_t points[3];
+    float z;
 } triangle_t;
 
 #endif
