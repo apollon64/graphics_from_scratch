@@ -2,7 +2,8 @@
 OBJS = src/main.c src/func.c src/display.c src/vector.c src/mesh.c src/array.c
 
 #CC specifies which compiler we're using
-CC = gcc
+#CC = gcc
+CC = clang
 
 #INCLUDE_PATHS specifies the additional include paths we'll need
 INCLUDE_PATHS = -IC:\dev\SDL2-2.0.14\x86_64-w64-mingw32\include\
@@ -14,7 +15,7 @@ LIBRARY_PATHS = -LC:\dev\SDL2-2.0.14\x86_64-w64-mingw32\lib
 # -w suppresses all warnings
 # -Wl,-subsystem,windows gets rid of the console window
 #COMPILER_FLAGS = -w -Wl,-subsystem,windows
-COMPILER_FLAGS = -Wall -std=c99 -DNO_STDIO_REDIRECT
+COMPILER_FLAGS = -Wall -std=c99 -DNO_STDIO_REDIRECT -g -o2 -fsanitize=undefined -fsanitize-undefined-trap-on-error
 
 #LINKER_FLAGS specifies the libraries we're linking against
 LINKER_FLAGS = -lmingw32 -lSDL2main -lSDL2 -lm

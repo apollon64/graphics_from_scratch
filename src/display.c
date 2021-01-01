@@ -3,7 +3,7 @@
 #include <SDL2/SDL.h>
 
 int window_width = 800;
-int window_height = 600;
+int window_height = 800;
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_Texture* color_buffer_texture = NULL;

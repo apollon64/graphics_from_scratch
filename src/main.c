@@ -230,8 +230,8 @@ void update(void) {
           normal = vec3_rotate_y(normal, mesh.rotation.y);
           normal = vec3_rotate_z(normal, mesh.rotation.z);
 
-          //vec3_normalize(&normal);
-          //normal = vec3_mul(normal, 0.125f);
+          vec3_normalize(&normal);
+          normal = vec3_mul(normal, 0.125f);
           vec3_t end = project3d( vec3_add(center, normal) );
           end.x += (window_width / 2);
           end.y += (window_height / 2);
@@ -259,7 +259,6 @@ void render(void) {
     clear_color_buffer( 0xFF000000 );
     draw_grid();
 
-    /*
     vec3_t centerPos = {0,0,0};
     vec3_t camera_dir =
     vec3_sub(camera.position, centerPos);
@@ -267,11 +266,12 @@ void render(void) {
     vec3_normalize(&camera_dir);
 
     // Loop all projected triangles and render them
-    uint32_t color = 0xFFFFFF00;
+    uint32_t color = 0xFFFFFFFF;
     int num_tris = array_length(triangles_to_render);
     for (int i = 0; i < num_tris; i++) {
         triangle_t triangle = triangles_to_render[i];
         draw_triangle(triangle.points[0].x, triangle.points[0].y, triangle.points[1].x, triangle.points[1].y, triangle.points[2].x, triangle.points[2].y, color);
+        draw_triangle_lines(triangle.points[0].x, triangle.points[0].y, triangle.points[1].x, triangle.points[1].y, triangle.points[2].x, triangle.points[2].y, 0xFF000000);
     }
 
     color = 0xFF00FF00;
@@ -280,9 +280,9 @@ void render(void) {
         line_t line = lines_to_render[i];
         draw_line(line.a.x, line.a.y, line.b.x, line.b.y, color);
     }
-    */
 
-    draw_triangle(300, 100, 50, 400, 500, 700, 0xFF00FF00);
+
+    //draw_triangle(300, 100, 50, 400, 500, 700, 0xFF00FF00);
 
     // Clear the array of triangles to render every frame loop
     array_free(lines_to_render);
