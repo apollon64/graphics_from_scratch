@@ -134,13 +134,6 @@ void draw_line(int x0, int y0, int x1, int y1, uint32_t color)
 
 }
 
-float myRound(float v)
-{
-    int i = (int) v;
-    if (v-i > 0.5) return i+1;
-    return i;
-}
-
 void draw_line_dda(int x0, int y0, int x1, int y1, uint32_t color)
 {
     int delta_x = x1-x0;
@@ -153,7 +146,7 @@ void draw_line_dda(int x0, int y0, int x1, int y1, uint32_t color)
     float cx = x0;
     float cy = y0;
     for(int i=0; i<=side_len; i++) {
-        setpix( round(cx), round(cy), color);
+        setpix( roundf(cx), roundf(cy), color);
         cx += x_inc;
         cy += y_inc;
     }

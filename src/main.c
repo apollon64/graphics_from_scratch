@@ -98,13 +98,25 @@ void process_input(void) {
             if (event.key.keysym.sym == SDLK_4)
                 render_method = RENDER_FILL_TRIANGLE_WIRE;
             if (event.key.keysym.sym == SDLK_c)
+            {
                 cull_method = CULL_BACKFACE;
+                SDL_Log("cull back\n");
+            }
             if (event.key.keysym.sym == SDLK_d)
+            {
                 cull_method = CULL_NONE;
+                SDL_Log("cull off\n");
+            }
             if (event.key.keysym.sym == SDLK_z)
+            {
                 sort_faces_by_z_enable = true;
+                SDL_Log("sort by z ON\n");
+            }
             if (event.key.keysym.sym == SDLK_x)
+            {
                 sort_faces_by_z_enable = false;
+                SDL_Log("sort by z off\n");
+            }
             if (event.key.keysym.sym == SDLK_n)
                 display_normals_enable = true;
             break;
@@ -128,6 +140,7 @@ void process_input(void) {
                 mouse.right = 1;
             }
         }
+        break;
         case SDL_MOUSEBUTTONDOWN:
         {
             if (event.button.button == SDL_BUTTON_LEFT)
@@ -151,7 +164,6 @@ void process_input(void) {
                 mouse.right = 0;
             }
         }
-
         break;
         }
     }// while
@@ -173,13 +185,13 @@ void update(void) {
     triangles_to_render = NULL;
 
     time += 0.01;
-    mesh.rotation.x = 3.14;
-    mesh.rotation.y = mouse.x / (float)window_width * 2*M_PI;
-    mesh.rotation.z += 0.0;
+    mesh.rotation.x = (-.5f+mouse.x / (float)window_width) * 2.f*PI;
+    mesh.rotation.y = (-.5f+mouse.y / (float)window_height) * 2.f*PI;
+    mesh.rotation.z = 0;
 
     lines_to_render = NULL;
 
-    float translateY = 1.5f;
+    float translateY = 0.5f;
     float translateZ = 5.5f;
 
     // Loop all triangle faces of our mesh
@@ -196,7 +208,7 @@ void update(void) {
         center = vec3_add(center, face_vertices[0]);
         center = vec3_add(center, face_vertices[1]);
         center = vec3_add(center, face_vertices[2]);
-        center = vec3_mul(center, 1.0 / 3.0f);
+        center = vec3_mul(center, 1.0f / 3.0f);
         center = vec3_rotate_x(center, mesh.rotation.x);
         center = vec3_rotate_y(center, mesh.rotation.y);
         center = vec3_rotate_z(center, mesh.rotation.z);
@@ -337,11 +349,17 @@ void render(void) {
 
         // Draw filled triangle
         if (render_method == RENDER_FILL_TRIANGLE || render_method == RENDER_FILL_TRIANGLE_WIRE) {
+          float z = triangle.z <= 0.f ? 0.01f : triangle.z;
+            float c = 255-255/5.f*z;
+            //c = min(255.0f, c);
+            //c = max(0.0f, c);
+            c = c > 255 ? 255.f : c;
+            c = c < 0 ? 0.0f : c;
             draw_triangle(
                 triangle.points[0].x, triangle.points[0].y, // vertex A
                 triangle.points[1].x, triangle.points[1].y, // vertex B
                 triangle.points[2].x, triangle.points[2].y, // vertex C
-                0xFF555555
+                packColor( (U8)c, (U8)c, (U8)c) //0xFF555555
             );
         }
 
@@ -404,6 +422,8 @@ int EndsWith(const char *str, const char *suffix)
 int main(int argc, char *argv[])
 {
     SDL_Log("Hello courses.pikuma.com\n");
+
+
     for(int i=0; i<argc; i++)
     {
         SDL_Log("%d:%s\n", i, argv[i]);
