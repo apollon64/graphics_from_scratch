@@ -2,6 +2,8 @@
 
 #include <SDL2/SDL.h>
 
+enum eCull_method cull_method;
+enum eRender_method render_method;
 int window_width = 800;
 int window_height = 800;
 SDL_Window *window = NULL;

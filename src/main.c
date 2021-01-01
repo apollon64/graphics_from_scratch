@@ -45,6 +45,11 @@ struct mouse_t {
 
 void setup(const char* mesh_file) {
     time = 0.0;
+
+    // Initialize render mode and triangle culling method
+    render_method = RENDER_WIRE;
+    cull_method = CULL_BACKFACE;
+
     //load_cube_mesh_data();
     load_obj_file_data(mesh_file);
 }
@@ -80,12 +85,21 @@ void process_input(void) {
             is_running = false;
             break;
         case SDL_KEYDOWN:
-            if (event.key.keysym.sym == SDLK_ESCAPE)
-            {
-                SDL_Log("SDLK_ESCAPE\n");
-                is_running = false;
-            }
-            break;
+          if (event.key.keysym.sym == SDLK_ESCAPE)
+              is_running = false;
+          if (event.key.keysym.sym == SDLK_1)
+              render_method = RENDER_WIRE_VERTEX;
+          if (event.key.keysym.sym == SDLK_2)
+              render_method = RENDER_WIRE;
+          if (event.key.keysym.sym == SDLK_3)
+              render_method = RENDER_FILL_TRIANGLE;
+          if (event.key.keysym.sym == SDLK_4)
+              render_method = RENDER_FILL_TRIANGLE_WIRE;
+          if (event.key.keysym.sym == SDLK_c)
+              cull_method = CULL_BACKFACE;
+          if (event.key.keysym.sym == SDLK_d)
+              cull_method = CULL_NONE;
+          break;
         case SDL_MOUSEMOTION:
         {
             mouse.x = event.motion.x;
@@ -213,10 +227,16 @@ void update(void) {
 
         // Bypass the triangles looking away from camera
         bool front_facing = rayDotNormal > 0.0f;
-        if (front_facing || mouse.left)
+
+        //if (cull_method == CULL_BACKFACE && front_facing)
         {
           // Save the projected triangle in the array of triangles to render
+          if (cull_method == CULL_BACKFACE && !front_facing)
+          {
+             continue;
+          }
           array_push(triangles_to_render, projected_triangle);
+
 
           vec3_t start = project3d(center);
           start.x += (window_width / 2);
@@ -239,7 +259,6 @@ void update(void) {
           line_t projected_line = {.a = start, .b = end};
           array_push(lines_to_render, projected_line);
         }
-
 
 
     }
@@ -270,8 +289,33 @@ void render(void) {
     int num_tris = array_length(triangles_to_render);
     for (int i = 0; i < num_tris; i++) {
         triangle_t triangle = triangles_to_render[i];
-        draw_triangle(triangle.points[0].x, triangle.points[0].y, triangle.points[1].x, triangle.points[1].y, triangle.points[2].x, triangle.points[2].y, color);
-        draw_triangle_lines(triangle.points[0].x, triangle.points[0].y, triangle.points[1].x, triangle.points[1].y, triangle.points[2].x, triangle.points[2].y, 0xFF000000);
+
+        // Draw filled triangle
+        if (render_method == RENDER_FILL_TRIANGLE || render_method == RENDER_FILL_TRIANGLE_WIRE) {
+            draw_triangle(
+                triangle.points[0].x, triangle.points[0].y, // vertex A
+                triangle.points[1].x, triangle.points[1].y, // vertex B
+                triangle.points[2].x, triangle.points[2].y, // vertex C
+                0xFF555555
+            );
+        }
+
+        // Draw triangle wireframe
+        if (render_method == RENDER_WIRE || render_method == RENDER_WIRE_VERTEX || render_method == RENDER_FILL_TRIANGLE_WIRE) {
+            draw_triangle_lines(
+                triangle.points[0].x, triangle.points[0].y, // vertex A
+                triangle.points[1].x, triangle.points[1].y, // vertex B
+                triangle.points[2].x, triangle.points[2].y, // vertex C
+                0xFFFFFFFF
+            );
+        }
+
+        // Draw triangle vertex points
+        if (render_method == RENDER_WIRE_VERTEX) {
+            draw_rect(triangle.points[0].x - 3, triangle.points[0].y - 3, 6, 6, 0xFFFF0000); // vertex A
+            draw_rect(triangle.points[1].x - 3, triangle.points[1].y - 3, 6, 6, 0xFFFF0000); // vertex B
+            draw_rect(triangle.points[2].x - 3, triangle.points[2].y - 3, 6, 6, 0xFFFF0000); // vertex C
+        }
     }
 
     color = 0xFF00FF00;
