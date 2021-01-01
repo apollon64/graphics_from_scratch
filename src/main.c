@@ -12,6 +12,7 @@
 #include "vector.h"
 #include "mesh.h"
 #include "array.h"
+#include "matrix.h"
 
 // Review of structs
 typedef struct {
@@ -189,10 +190,25 @@ void update(void) {
     mesh.rotation.y = (-.5f+mouse.y / (float)window_height) * 2.f*PI;
     mesh.rotation.z = 0;
 
-    lines_to_render = NULL;
+    mesh.translation.x = 0;
+    mesh.translation.y = 0.5f;
+    mesh.translation.z = 5.5f + 20.f * mouse.y / (float)window_height;
 
-    float translateY = 0.5f;
-    float translateZ = 5.5f;
+    // Change the mesh scale/rotation values per animation frame
+    /*mesh.rotation.x += 0.01;
+    mesh.rotation.y += 0.01;
+    mesh.rotation.z += 0.01;
+    mesh.scale.x += 0.002;
+    mesh.scale.y += 0.001;*/
+
+    // Create scale, rotation, and translation matrices that will be used to multiply the mesh vertices
+    mat4_t scale_matrix = mat4_make_scale(mesh.scale.x, mesh.scale.y, mesh.scale.z);
+    mat4_t translation_matrix = mat4_make_translation(mesh.translation.x, mesh.translation.y, mesh.translation.z);
+    mat4_t rotation_matrix_x = mat4_make_rotation_x(mesh.rotation.x);
+    mat4_t rotation_matrix_y = mat4_make_rotation_y(mesh.rotation.y);
+    mat4_t rotation_matrix_z = mat4_make_rotation_z(mesh.rotation.z);
+
+    lines_to_render = NULL;
 
     // Loop all triangle faces of our mesh
     int n_faces = array_length(mesh.faces);
@@ -209,33 +225,37 @@ void update(void) {
         center = vec3_add(center, face_vertices[1]);
         center = vec3_add(center, face_vertices[2]);
         center = vec3_mul(center, 1.0f / 3.0f);
-        center = vec3_rotate_x(center, mesh.rotation.x);
-        center = vec3_rotate_y(center, mesh.rotation.y);
-        center = vec3_rotate_z(center, mesh.rotation.z);
 
-        center.y += translateY;
-        center.z += translateZ;
+        // Use a matrix to scale our original vertex
+        vec4_t transformed_center = vec4_from_vec3(center);
+        transformed_center = mat4_mul_vec4(scale_matrix, transformed_center);
+        transformed_center = mat4_mul_vec4(rotation_matrix_x, transformed_center);
+        transformed_center = mat4_mul_vec4(rotation_matrix_y, transformed_center);
+        transformed_center = mat4_mul_vec4(rotation_matrix_z, transformed_center);
+        transformed_center = mat4_mul_vec4(translation_matrix, transformed_center);
+        center = vec3_from_vec4(transformed_center);
 
 
-        vec3_t transformed_vertices[3];
+        vec4_t transformed_vertices[3];
         // Loop all three vertices of this current face and apply transformations
         for (int j = 0; j < 3; j++) {
-            vec3_t transformed_vertex = face_vertices[j];
+            vec4_t transformed_vertex = vec4_from_vec3(face_vertices[j]);
 
-            transformed_vertex = vec3_rotate_x(transformed_vertex, mesh.rotation.x);
-            transformed_vertex = vec3_rotate_y(transformed_vertex, mesh.rotation.y);
-            transformed_vertex = vec3_rotate_z(transformed_vertex, mesh.rotation.z);
+            // Use a matrix to scale our original vertex
+            transformed_vertex = mat4_mul_vec4(scale_matrix, transformed_vertex);
+            transformed_vertex = mat4_mul_vec4(rotation_matrix_x, transformed_vertex);
+            transformed_vertex = mat4_mul_vec4(rotation_matrix_y, transformed_vertex);
+            transformed_vertex = mat4_mul_vec4(rotation_matrix_z, transformed_vertex);
+            transformed_vertex = mat4_mul_vec4(translation_matrix, transformed_vertex);
 
-            // Translate the vertex away from the camera
-            transformed_vertex.y += translateY;
-            transformed_vertex.z += translateZ;
+            // Save transformed vertex in the array of transformed vertices
             transformed_vertices[j] = transformed_vertex;
         }
 
         triangle_t projected_triangle;
         projected_triangle.z = center.z;
         for (int j = 0; j < 3; j++) {
-            vec2_t projected_point = project(transformed_vertices[j]);
+            vec2_t projected_point = project(vec3_from_vec4(transformed_vertices[j]));
             // Scale and translate the projected points to the middle of the screen
             projected_point.x += (window_width / 2);
             projected_point.y += (window_height / 2);
@@ -243,12 +263,17 @@ void update(void) {
         }
 
         // Check backface culling
-        vec3_t vector_ab = vec3_sub(transformed_vertices[1], transformed_vertices[0]);
-        vec3_t vector_ac = vec3_sub(transformed_vertices[2], transformed_vertices[0]);
+        vec3_t vector_a = vec3_from_vec4(transformed_vertices[0]); /*   A   */
+        vec3_t vector_b = vec3_from_vec4(transformed_vertices[1]); /*  / \  */
+        vec3_t vector_c = vec3_from_vec4(transformed_vertices[2]); /* C---B */
+
+        // Get the vector subtraction of B-A and C-A
+        vec3_t vector_ab = vec3_sub(vector_b, vector_a);
+        vec3_t vector_ac = vec3_sub(vector_c, vector_a);
         vec3_t normal = vec3_cross(vector_ab, vector_ac);
 
         // Find the vector between a point in the triangle and camera origin
-        vec3_t camera_ray = vec3_sub(camera.position, transformed_vertices[0]);
+        vec3_t camera_ray = vec3_sub(camera.position, vector_a);
 
         float rayDotNormal = vec3_dot(camera_ray, normal);
 
