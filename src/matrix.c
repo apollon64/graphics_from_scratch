@@ -92,3 +92,21 @@ vec4_t mat4_mul_vec4(mat4_t m, vec4_t v) {
     result.w = m.m[3][0] * v.x + m.m[3][1] * v.y + m.m[3][2] * v.z + m.m[3][3] * v.w;
     return result;
 }
+
+mat4_t mat4_mul_mat4(mat4_t a, mat4_t b) {
+  mat4_t result;
+  for(int r=0; r<4; r++)
+  {
+    for(int c=0; c<4; c++)
+    {
+        // dot A rows and B columns
+        result.m[r][c] =
+        a.m[r][0] * b.m[0][c] +
+        a.m[r][1] * b.m[1][c] +
+        a.m[r][2] * b.m[2][c] +
+        a.m[r][3] * b.m[3][c];
+    }
+
+  }
+  return result;
+}
