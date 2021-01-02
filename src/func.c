@@ -3,6 +3,7 @@
 #include <math.h>
 #include <assert.h>
 #include "display.h"
+#include "vector.h"
 //extern uint32_t *color_buffer;
 //extern int window_width;
 //extern int window_height;
@@ -18,6 +19,12 @@ void int_swap(int* a, int* b) {
     *b = tmp;
 }
 
+void uint32_t_swap(uint32_t* a, uint32_t* b) {
+    uint32_t tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
 void ivec2_swap(ivec2 *a, ivec2 *b)
 {
     ivec2 tmp = *a;
@@ -25,6 +32,9 @@ void ivec2_swap(ivec2 *a, ivec2 *b)
     *b = tmp;
 }
 
+float lerp (float a, float b, float f) {
+    return (a * (1.0f - f)) + (b * f);
+}
 
 int clamp(int x, int lo, int hi)
 {
@@ -42,6 +52,13 @@ uint32_t packColor(U8 r, U8 g, U8 b)
     ret |= g << 8;
     ret |= b << 0;
     return ret;
+}
+
+void unpackColor(uint32_t c, float *r, float *g, float *b)
+{
+  *r = ( (c >> 16) & 0xFF) / 255.f;
+  *g = ( (c >>  8) & 0xFF) / 255.f;
+  *b = ( (c >>  0) & 0xFF) / 255.f;
 }
 
 void setpix(int x, int y, uint32_t color)
@@ -131,7 +148,6 @@ void draw_line(int x0, int y0, int x1, int y1, uint32_t color)
             y0 += sy;
         }
     }
-
 }
 
 void draw_line_dda(int x0, int y0, int x1, int y1, uint32_t color)
@@ -231,28 +247,34 @@ ivec2 getMidpointPikuma(ivec2 p0, ivec2 p1, ivec2 p2)
     */
 }
 
-void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color)
+void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t* colors)
 {
     ivec2 sorted[3] = { {.x=x0,.y=y0}, {.x=x1,.y=y1}, {.x=x2,.y=y2} };
+
     // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
     if ( sorted[0].y > sorted[1].y ) {
         ivec2_swap( &sorted[0], &sorted[1] );
+        uint32_t_swap( &colors[0], &colors[1] );
     }
     if ( sorted[1].y > sorted[2].y ) {
         ivec2_swap( &sorted[1], &sorted[2] );
+        uint32_t_swap( &colors[1], &colors[2] );
     }
     if ( sorted[0].y > sorted[1].y ) {
         ivec2_swap( &sorted[0], &sorted[1] );
+        uint32_t_swap( &colors[0], &colors[1] );
     }
 
+    uint32_t first_color = colors[0];
+
     if ( sorted[1].y == sorted[2].y ) {
-        draw_flat_bottom(sorted[0], sorted[1], sorted[2], color);
+        draw_flat_bottom(sorted[0], sorted[1], sorted[2], first_color);
     } else if (sorted[0].y == sorted[1].y) {
-        draw_flat_top(sorted[0], sorted[1], sorted[2], color);
+        draw_flat_top(sorted[0], sorted[1], sorted[2], first_color);
     } else {
         ivec2 midpoint = getMidpointPikuma(sorted[0], sorted[1], sorted[2]);
-        draw_flat_bottom(sorted[0], sorted[1], midpoint, color);
-        draw_flat_top(sorted[1], midpoint, sorted[2], color);
+        draw_flat_bottom(sorted[0], sorted[1], midpoint, first_color);
+        draw_flat_top(sorted[1], midpoint, sorted[2], first_color);
     }
 
 }

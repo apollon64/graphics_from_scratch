@@ -1,6 +1,7 @@
 #ifndef TRIANGLE_H
 #define TRIANGLE_H
 
+#include <stdint.h>
 #include "vector.h"
 
 typedef struct {
@@ -11,6 +12,7 @@ typedef struct {
 
 typedef struct {
     vec2_t points[3];
+    uint32_t colors[3];
     float z;
 } triangle_t;
 

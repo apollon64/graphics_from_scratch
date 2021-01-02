@@ -37,7 +37,6 @@ camera_t camera = {
 };
 double time = 0;
 
-float fov_factor = 640;
 bool is_running = false;
 unsigned int previous_frame_time = 0;
 
@@ -57,21 +56,9 @@ void setup(const char* mesh_file) {
     load_obj_file_data(mesh_file);
 }
 
-vec2_t project(vec3_t point) {
-    vec2_t projected_point = {
-        .x = (fov_factor * point.x) / point.z,
-        .y = (fov_factor * point.y) / point.z
-    };
-    return projected_point;
-}
-
-vec3_t project3d(vec3_t point) {
-    vec3_t projected_point = {
-        .x = (fov_factor * point.x) / point.z,
-        .y = (fov_factor * point.y) / point.z,
-        .z = point.z
-    };
-    return projected_point;
+uint32_t vec3_to_uint32_t(vec3_t c)
+{
+   return packColor( (U8)c.x*255, (U8)c.y*255, (U8)c.z*255);
 }
 
 void process_input(void) {
@@ -185,6 +172,10 @@ void update(void) {
     // Initialize the array of triangles to render
     triangles_to_render = NULL;
 
+    float aspect_ratio = window_height / (float) window_width;
+    float fov_angle = PI / 3.0f;
+    mat4_t proj_matrix = mat4_make_perspective(fov_angle, aspect_ratio, 0.1f, 100.0f);
+
     time += 0.01;
     mesh.rotation.x = (-.5f+mouse.x / (float)window_width) * 2.f*PI;
     mesh.rotation.y = (-.5f+mouse.y / (float)window_height) * 2.f*PI;
@@ -194,13 +185,6 @@ void update(void) {
     mesh.translation.y = 0.5f;
     mesh.translation.z = 5.5f + 20.f * mouse.y / (float)window_height;
 
-    // Change the mesh scale/rotation values per animation frame
-    /*mesh.rotation.x += 0.01;
-    mesh.rotation.y += 0.01;
-    mesh.rotation.z += 0.01;
-    mesh.scale.x += 0.002;
-    mesh.scale.y += 0.001;*/
-
     // Create scale, rotation, and translation matrices that will be used to multiply the mesh vertices
     mat4_t scale_matrix = mat4_make_scale(mesh.scale.x, mesh.scale.y, mesh.scale.z);
     mat4_t translation_matrix = mat4_make_translation(mesh.translation.x, mesh.translation.y, mesh.translation.z);
@@ -208,12 +192,13 @@ void update(void) {
     mat4_t rotation_matrix_y = mat4_make_rotation_y(mesh.rotation.y);
     mat4_t rotation_matrix_z = mat4_make_rotation_z(mesh.rotation.z);
     mat4_t world_matrix = mat4_identity();
+    // Order matters: scale, rotate, translate. [T][R][S]*v
     world_matrix = mat4_mul_mat4(scale_matrix, world_matrix);
     world_matrix = mat4_mul_mat4(rotation_matrix_x, world_matrix);
     world_matrix = mat4_mul_mat4(rotation_matrix_y, world_matrix);
     world_matrix = mat4_mul_mat4(rotation_matrix_z, world_matrix);
-    mat4_t normal_matrix = world_matrix;
     world_matrix = mat4_mul_mat4(translation_matrix, world_matrix);
+    world_matrix = mat4_mul_mat4(proj_matrix, world_matrix);
 
     lines_to_render = NULL;
 
@@ -227,6 +212,11 @@ void update(void) {
         face_vertices[1] = mesh.vertices[mesh_face.b - 1];
         face_vertices[2] = mesh.vertices[mesh_face.c - 1];
 
+        uint32_t face_colors[3];
+        face_colors[0] = 0xFFFF0000;//vec3_to_uint32_t(mesh.colors[mesh_face.a - 1]); // Minus 1 because mesh vertices start from 1.
+        face_colors[1] = 0xFF00FF00;//vec3_to_uint32_t(mesh.colors[mesh_face.b - 1]);
+        face_colors[2] = 0xFF0000FF;//vec3_to_uint32_t(mesh.colors[mesh_face.c - 1]);
+
         vec3_t center = {0,0,0};
         center = vec3_add(center, face_vertices[0]);
         center = vec3_add(center, face_vertices[1]);
@@ -235,24 +225,32 @@ void update(void) {
 
         // Use a matrix to scale our original vertex
         vec4_t transformed_center = mat4_mul_vec4(world_matrix, vec4_from_vec3(center) );
-        center = vec3_from_vec4(transformed_center);
 
         vec4_t transformed_vertices[3];
         // Loop all three vertices of this current face and apply transformations
         for (int j = 0; j < 3; j++) {
-            vec4_t transformed_vertex = mat4_mul_vec4(world_matrix, vec4_from_vec3(face_vertices[j]) );
+            //vec4_t transformed_vertex = mat4_mul_vec4(world_matrix, vec4_from_vec3(face_vertices[j]) );
+            vec4_t transformed_vertex = mat4_mul_vec4_project(world_matrix, vec4_from_vec3(face_vertices[j]) );
+
             // Save transformed vertex in the array of transformed vertices
             transformed_vertices[j] = transformed_vertex;
         }
 
         triangle_t projected_triangle;
-        projected_triangle.z = center.z;
+        projected_triangle.z = transformed_center.z;
         for (int j = 0; j < 3; j++) {
-            vec2_t projected_point = project(vec3_from_vec4(transformed_vertices[j]));
+            vec3_t projected_point = vec3_from_vec4(transformed_vertices[j]);
             // Scale and translate the projected points to the middle of the screen
+            projected_point.x *= (window_width / 2);
+            projected_point.y *= (window_height / 2);
             projected_point.x += (window_width / 2);
             projected_point.y += (window_height / 2);
-            projected_triangle.points[j] = projected_point;
+            projected_triangle.points[j].x = projected_point.x;
+            projected_triangle.points[j].y = projected_point.y;
+            projected_triangle.z = projected_point.z;
+            projected_triangle.colors[0] = face_colors[0];
+            projected_triangle.colors[1] = face_colors[1];
+            projected_triangle.colors[2] = face_colors[2];
         }
 
         // Check backface culling
@@ -283,7 +281,9 @@ void update(void) {
             array_push(triangles_to_render, projected_triangle);
 
 
-            vec3_t start = project3d(center);
+            vec4_t start = mat4_mul_vec4_project(world_matrix, vec4_from_vec3(center) );
+            start.x *= (window_width / 2);
+            start.y *= (window_height / 2);
             start.x += (window_width / 2);
             start.y += (window_height / 2);
 
@@ -292,16 +292,15 @@ void update(void) {
                                 vec3_sub(face_vertices[2],face_vertices[0])
                             );
 
-            vec4_t transformed_normal = mat4_mul_vec4(normal_matrix, vec4_from_vec3(normal) );
-            normal = vec3_from_vec4(transformed_normal);
-
             vec3_normalize(&normal);
             normal = vec3_mul(normal, 0.125f);
-            vec3_t end = project3d( vec3_add(center, normal) );
+            vec4_t end = mat4_mul_vec4_project(world_matrix, vec4_from_vec3( vec3_add(center, normal)) );
+            end.x *= (window_width / 2);
+            end.y *= (window_height / 2);
             end.x += (window_width / 2);
             end.y += (window_height / 2);
 
-            line_t projected_line = {.a = start, .b = end};
+            line_t projected_line = {.a = vec3_from_vec4(start), .b = vec3_from_vec4(end) };
             array_push(lines_to_render, projected_line);
         }
 
@@ -317,7 +316,6 @@ bool getWinding(float x0, float y0, float x1, float y1, float x2, float y2)
     if (dot > 0) return true;
     return false;
 }
-
 
 /* this function will be used by qsort to compare elements */
 int cmp(const void *v1, const void *v2) {
@@ -348,7 +346,7 @@ void sort(void)
 
 void render(void) {
 
-    clear_color_buffer( 0xFF000000 );
+    clear_color_buffer( packColor(32,32,32) );
     draw_grid();
 
     vec3_t centerPos = {0,0,0};
@@ -367,17 +365,19 @@ void render(void) {
 
         // Draw filled triangle
         if (render_method == RENDER_FILL_TRIANGLE || render_method == RENDER_FILL_TRIANGLE_WIRE) {
-          float z = triangle.z <= 0.f ? 0.01f : triangle.z;
-            float c = 255-255/5.f*z;
-            //c = min(255.0f, c);
-            //c = max(0.0f, c);
-            c = c > 255 ? 255.f : c;
-            c = c < 0 ? 0.0f : c;
+
+            //float z = triangle.z <= 0.f ? 0.01f : triangle.z;
+            //float c = 255-255/5.f*z;
+            //c = c > 255 ? 255.f : c;
+            //c = c < 0 ? 0.0f : c;
+            //triangle.colors
+            uint32_t colors[3] = {color,color,color};
+
             draw_triangle(
                 triangle.points[0].x, triangle.points[0].y, // vertex A
                 triangle.points[1].x, triangle.points[1].y, // vertex B
                 triangle.points[2].x, triangle.points[2].y, // vertex C
-                packColor( (U8)c, (U8)c, (U8)c) //0xFF555555
+                colors
             );
         }
 
@@ -387,7 +387,7 @@ void render(void) {
                 triangle.points[0].x, triangle.points[0].y, // vertex A
                 triangle.points[1].x, triangle.points[1].y, // vertex B
                 triangle.points[2].x, triangle.points[2].y, // vertex C
-                0xFFFFFFFF
+                0xFF000000
             );
         }
 

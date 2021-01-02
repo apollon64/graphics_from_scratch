@@ -5,9 +5,11 @@
 #include <string.h> // strncmp
 
 #include "array.h"
+#include <SDL2/SDL.h>
 
 mesh_t mesh = {
     .vertices = NULL,
+    //.texcoords = NULL,
     .faces = NULL,
     .translation = { 0, 0, 0 },
     .rotation = { 0, 0, 0 },
@@ -73,6 +75,14 @@ void load_obj_file_data(const char* filename) {
             sscanf(line, "v %f %f %f", &vertex.x, &vertex.y, &vertex.z);
             array_push(mesh.vertices, vertex);
         }
+        // Texture information
+        /*if (strncmp(line, "vt ", (size_t)3) == 0) {
+            vec2_t texcoord;
+            sscanf(line, "vt %f %f", &texcoord.x, &texcoord.y);
+            array_push(mesh.texcoords, texcoord);
+        }*/
+
+
         // Face information
         if (strncmp(line, "f ", (size_t)2) == 0) {
             int vertex_indices[3];
@@ -87,10 +97,13 @@ void load_obj_file_data(const char* filename) {
             face_t face = {
                 .a = vertex_indices[0],
                 .b = vertex_indices[1],
-                .c = vertex_indices[2]
+                .c = vertex_indices[2],
             };
             array_push(mesh.faces, face);
         }
     }
+    //int vlen = array_length(mesh.vertices);
+    //int tlen = array_length(mesh.texcoords);
+    //SDL_Log("vlen:%d, tlen:%d \n", vlen, tlen);
     fclose(file);
 }
