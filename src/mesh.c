@@ -9,7 +9,7 @@
 
 mesh_t mesh = {
     .vertices = NULL,
-    //.texcoords = NULL,
+    .texcoords = NULL,
     .faces = NULL,
     .translation = { 0, 0, 0 },
     .rotation = { 0, 0, 0 },
@@ -76,12 +76,11 @@ void load_obj_file_data(const char* filename) {
             array_push(mesh.vertices, vertex);
         }
         // Texture information
-        /*if (strncmp(line, "vt ", (size_t)3) == 0) {
+        if (strncmp(line, "vt ", (size_t)3) == 0) {
             vec2_t texcoord;
             sscanf(line, "vt %f %f", &texcoord.x, &texcoord.y);
             array_push(mesh.texcoords, texcoord);
-        }*/
-
+        }
 
         // Face information
         if (strncmp(line, "f ", (size_t)2) == 0) {
@@ -98,12 +97,16 @@ void load_obj_file_data(const char* filename) {
                 .a = vertex_indices[0],
                 .b = vertex_indices[1],
                 .c = vertex_indices[2],
+                .texcoord_a = texture_indices[0],
+                .texcoord_b = texture_indices[1],
+                .texcoord_c = texture_indices[2],
             };
             array_push(mesh.faces, face);
         }
     }
-    //int vlen = array_length(mesh.vertices);
-    //int tlen = array_length(mesh.texcoords);
-    //SDL_Log("vlen:%d, tlen:%d \n", vlen, tlen);
+    int vertex_len = array_length(mesh.vertices);
+    int texcoord_len = array_length(mesh.texcoords);
+    int faces_len = array_length(mesh.faces);
+    SDL_Log("loaded mesh, verts:%d, texcoords:%d, faces:%d \n", vertex_len, texcoord_len, faces_len);
     fclose(file);
 }

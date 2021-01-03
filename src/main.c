@@ -12,6 +12,7 @@
 #include "array.h"
 #include "matrix.h"
 #include "light.h"
+#include "texture.h"
 
 // Review of structs
 typedef struct {
@@ -84,6 +85,10 @@ void process_input(void) {
                 render_method = RENDER_FILL_TRIANGLE;
             if (event.key.keysym.sym == SDLK_4)
                 render_method = RENDER_FILL_TRIANGLE_WIRE;
+            if (event.key.keysym.sym == SDLK_5)
+               render_method = RENDER_TEXTURED;
+            if (event.key.keysym.sym == SDLK_6)
+                render_method = RENDER_TEXTURED_WIRE;
             if (event.key.keysym.sym == SDLK_c)
             {
                 cull_method = CULL_BACKFACE;
@@ -197,6 +202,10 @@ void update(void) {
     mouse_oy = mouse.y;
     if (mouse.left) mesh.rotation.x += .01f*mouse_dx;
     if (mouse.right) mesh.rotation.y += .01f*mouse_dy;
+    //mesh.rotation.z = 0;
+
+    mesh.rotation.x = .5*time;
+    mesh.rotation.y = .5*time;
     mesh.rotation.z = 0;
 
     mesh.translation.x = 0;
@@ -253,6 +262,11 @@ void update(void) {
         face_vertices[1] = mesh.vertices[mesh_face.b - 1];
         face_vertices[2] = mesh.vertices[mesh_face.c - 1];
 
+        vec2_t face_texcoords[3];
+        face_texcoords[0] = mesh.texcoords[mesh_face.texcoord_a - 1]; // Minus 1 because mesh vertices start from 1.
+        face_texcoords[1] = mesh.texcoords[mesh_face.texcoord_b - 1];
+        face_texcoords[2] = mesh.texcoords[mesh_face.texcoord_c - 1];
+
         uint32_t face_colors[3];
         face_colors[0] = 0xFFFF0000;//vec3_to_uint32_t(mesh.colors[mesh_face.a - 1]); // Minus 1 because mesh vertices start from 1.
         face_colors[1] = 0xFF00FF00;//vec3_to_uint32_t(mesh.colors[mesh_face.b - 1]);
@@ -288,6 +302,8 @@ void update(void) {
             projected_triangle.colors[0] = face_colors[0];
             projected_triangle.colors[1] = face_colors[1];
             projected_triangle.colors[2] = face_colors[2];
+
+            projected_triangle.texcoords[j] = face_texcoords[j];
         }
 
         // Check backface culling
@@ -411,8 +427,45 @@ void render(void) {
             );
         }
 
+        // Draw filled triangle
+        if (render_method == RENDER_TEXTURED || render_method == RENDER_TEXTURED_WIRE) {
+
+            //float z = triangle.z <= 0.f ? 0.01f : triangle.z;
+            //float c = 255-255/5.f*z;
+            //c = c > 255 ? 255.f : c;
+            //c = c < 0 ? 0.0f : c;
+            //triangle.colors
+            light.direction = vec3_sub(light.position, triangle.center );
+            vec3_normalize(&light.direction);
+
+            vec4_t normal = vec4_from_vec3(triangle.normal);
+            normal.w = 0;
+            vec3_t normalInterp = vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
+            vec3_normalize(&normalInterp);
+            float n_dot_l = vec3_dot(normalInterp, light.direction);
+            if (n_dot_l < 0.0f) n_dot_l = 0.0f;
+            uint32_t color_lit = light_apply_intensity(color, n_dot_l);
+            uint32_t colors[3] = {color_lit,color_lit,color_lit};
+
+            vertex_texcoord_t vertices[3];
+            for(int vtx=0; vtx<3; vtx++)
+            {
+              vertices[vtx].x = triangle.points[vtx].x;
+              vertices[vtx].y = triangle.points[vtx].y;
+              //vertices[i].z = triangle.points[i].z;
+              vertices[vtx].u = triangle.texcoords[vtx].x;
+              vertices[vtx].v = triangle.texcoords[vtx].y;
+            }
+            texture_t texture = {.texels = (uint8_t*)&REDBRICK_TEXTURE[0], .width=64, .height=64};
+            draw_triangle_textured(vertices, &texture, colors);
+        }
+
         // Draw triangle wireframe
-        if (render_method == RENDER_WIRE || render_method == RENDER_WIRE_VERTEX || render_method == RENDER_FILL_TRIANGLE_WIRE) {
+        if (render_method == RENDER_WIRE ||
+          render_method == RENDER_WIRE_VERTEX ||
+          render_method == RENDER_FILL_TRIANGLE_WIRE ||
+          render_method == RENDER_TEXTURED_WIRE
+        ) {
             draw_triangle_lines(
                 triangle.points[0].x, triangle.points[0].y, // vertex A
                 triangle.points[1].x, triangle.points[1].y, // vertex B
@@ -452,6 +505,7 @@ void render(void) {
 void free_resources(void) {
     free(color_buffer);
     array_free(mesh.vertices);
+    array_free(mesh.texcoords);
     array_free(mesh.faces);
 }
 

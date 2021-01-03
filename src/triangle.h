@@ -8,10 +8,15 @@ typedef struct {
     int a;
     int b;
     int c;
+
+    int texcoord_a;
+    int texcoord_b;
+    int texcoord_c;
 } face_t;
 
 typedef struct {
     vec2_t points[3];
+    vec2_t texcoords[3];
     vec3_t normal;
     vec3_t center;
     uint32_t colors[3];

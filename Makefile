@@ -1,5 +1,10 @@
 #OBJS specifies which files to compile as part of the project
-OBJS = src/main.c src/func.c src/display.c src/vector.c src/mesh.c src/array.c src/matrix.c src/light.c
+OBJS = src/main.c \
+src/func.c \
+src/display.c \
+src/vector.c \
+src/mesh.c \
+src/array.c src/matrix.c src/light.c src/texture.c
 
 #CC specifies which compiler we're using
 #CC = g++ or gcc
@@ -14,10 +19,13 @@ LIBRARY_PATHS = -LC:\dev\SDL2-2.0.14\x86_64-w64-mingw32\lib
 #COMPILER_FLAGS specifies the additional compilation options we're using
 # -w suppresses all warnings
 # -Wl,-subsystem,windows gets rid of the console window
-#COMPILER_FLAGS = -w -Wl,-subsystem,windows
-COMPILER_FLAGS = -pipe -Wall -Wextra -Wdouble-promotion -Wno-sign-compare -DNO_STDIO_REDIRECT -g -o2 -fsanitize-undefined-trap-on-error# -fsanitize=undefined -fsanitize=bounds #-fsanitize=memory
+#COMPILER_FLAGS = -w -Wl,-subsystem,windows -DNO_STDIO_REDIRECT
+COMPILER_FLAGS = -pipe -Wall -Wextra -Wdouble-promotion -Wno-sign-compare -g -o2 -fsanitize-undefined-trap-on-error# -fsanitize=undefined -fsanitize=bounds #-fsanitize=memory
 COMPILER_FLAGS := $(COMPILER_FLAGS) -std=c99
 #COMPILER_FLAGS := $(COMPILER_FLAGS) -std=c++0x -fpermissive # compile as C++
+
+COMPILER_FLAGS_RELEASE = -pipe -Wall -Wextra -Wdouble-promotion -Wno-sign-compare -o3 -DNDEBUG
+COMPILER_FLAGS_RELEASE := $(COMPILER_FLAGS_RELEASE) -std=c99
 
 #LINKER_FLAGS specifies the libraries we're linking against
 LINKER_FLAGS = -lmingw32 -lSDL2main -lSDL2 -lm
@@ -28,6 +36,9 @@ OBJ_NAME = a
 #This is the target that compiles our executable
 all : $(OBJS)
 	$(CC) $(OBJS) $(INCLUDE_PATHS) $(LIBRARY_PATHS) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $(OBJ_NAME)
+
+release : $(OBJS)
+		$(CC) $(OBJS) $(INCLUDE_PATHS) $(LIBRARY_PATHS) $(COMPILER_FLAGS_RELEASE) $(LINKER_FLAGS) -o $(OBJ_NAME)
 
 run:
 	./a parameter 1 2 3

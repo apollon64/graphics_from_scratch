@@ -19,6 +19,13 @@ void int_swap(int* a, int* b) {
     *b = tmp;
 }
 
+void float_swap(float* a, float* b) {
+    float tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+
 void uint32_t_swap(uint32_t* a, uint32_t* b) {
     uint32_t tmp = *a;
     *a = *b;
@@ -28,6 +35,13 @@ void uint32_t_swap(uint32_t* a, uint32_t* b) {
 void ivec2_swap(ivec2 *a, ivec2 *b)
 {
     ivec2 tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+void vertex_texcoord_t_swap(vertex_texcoord_t *a, vertex_texcoord_t *b)
+{
+    vertex_texcoord_t tmp = *a;
     *a = *b;
     *b = tmp;
 }
@@ -42,6 +56,14 @@ int clamp(int x, int lo, int hi)
     if (x > hi) return hi;
     return x;
 }
+
+float clampf(float x, float lo, float hi)
+{
+    if (x < lo) return lo;
+    if (x > hi) return hi;
+    return x;
+}
+
 
 uint32_t packColor(U8 r, U8 g, U8 b)
 {
@@ -59,6 +81,23 @@ void unpackColor(uint32_t c, float *r, float *g, float *b)
   *r = ( (c >> 16) & 0xFF) / 255.f;
   *g = ( (c >>  8) & 0xFF) / 255.f;
   *b = ( (c >>  0) & 0xFF) / 255.f;
+}
+
+uint32_t mix_colors(uint32_t a, uint32_t b, float factor)
+{
+  if (factor < 0) factor = 0;
+  if (factor > 1) factor = 1;
+  vec3_t va,vb;
+  unpackColor(a, &va.x, &va.y, &va.z);
+  unpackColor(b, &vb.x, &vb.y, &vb.z);
+  vec3_t new_color;
+  //new_color.x = lerp(va.x, vb.x, factor);
+  //new_color.y = lerp(va.y, vb.y, factor);
+  //new_color.z = lerp(va.z, vb.z, factor);
+  new_color.x = va.x * vb.x;
+  new_color.y = va.y * vb.y;
+  new_color.z = va.z * vb.z;
+  return packColor(255*new_color.x, 255*new_color.y, 255*new_color.z);
 }
 
 void setpix(int x, int y, uint32_t color)
@@ -233,23 +272,167 @@ void draw_flat_top(ivec2 p0, ivec2 p1, ivec2 p2, uint32_t color)
     }
 }
 
-ivec2 getMidpointPikuma(ivec2 p0, ivec2 p1, ivec2 p2)
+void draw_flat_bottom_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, texture_t *texture, uint32_t color)
 {
-    int mx = (((p2.x - p0.x) * (p1.y - p0.y)) / (p2.y - p0.y)) + p0.x;
-    return (ivec2) {
-        .x = mx,
-        .y = p1.y
-    };
-    /*
-    // Solution to the Triangle Midpoint
-    ivec2 p0p1 = {p1.x - p0.x, p1.y - p0.y};
-    ivec2 p0p2 = {p2.x - p0.x, p2.y - p0.y};
-    float mx = p0.x + (p0p2.x*p0p1.y)/(float)p0p2.y;
-    return (ivec2) {
-      .x = (int) mx,
-      .y = p1.y
-    };
-    */
+  // p0
+  //p1 p2
+  if(p1.x > p2.x)
+  {
+    vertex_texcoord_t_swap(&p1, &p2);
+  }
+
+  int x0 = p0.x;
+  int y0 = p0.y;
+  int x1 = p1.x;
+  int y1 = p1.y;
+  int x2 = p2.x;
+  int y2 = p2.y;
+  p0.v = 1.0f - p0.v;
+  p1.v = 1.0f - p1.v;
+  p2.v = 1.0f - p2.v;
+
+  // Find the two slopes (two triangle legs)
+  int height = y1 - y0;
+  if (height==0) return;
+
+  assert(p0.y < p1.y);
+  assert(p0.y < p2.y);
+  assert(p1.y==p2.y);
+
+  float dx_dy1 = (float)(x1 - x0) / height;
+  float dx_dy2 = (float)(x2 - x0) / height;
+
+  // Loop all the scanlines from top to bottom
+  for (int y = y0; y <= y1; y++) {
+      float dy = y - y0;
+      int x_start = x0 + dy * dx_dy1;
+      int x_end = x0 + dy * dx_dy2;
+
+      float tstart = (y-y0)/(float)(y1-y0);
+      assert(tstart>=0.0f && tstart<=1.0f && "tt oob");
+      float u_start = p0.u + tstart*(p1.u-p0.u);
+      float v_start = p0.v + tstart*(p1.v-p0.v);
+
+      float tend = (y-y0)/(float)(y2-y0);
+      assert(tend>=0.0f && tend<=1.0f && "tend oob");
+      float u_end = p0.u + tend*(p2.u-p0.u);
+      float v_end = p0.v + tend*(p2.v-p0.v);
+
+      if (x_start < x_end && (x_end-x_start) > 0 )
+      {
+        if ( (x_end-x_start) > 0 )
+        for(int x=x_start; x<x_end; x++)
+        {
+          float tx = (x-x_start)/(float)(x_end-x_start);
+          assert(tx>=0.0f && tx<=1.0f && "t oob");
+          float u = u_start + tx*(u_end-u_start);
+          float v = v_start + tx*(v_end-v_start);
+          int u_clamp = (int) (u * texture->width);
+          int v_clamp = (int) (v * texture->height);
+          u_clamp = abs(u_clamp);
+          v_clamp = abs(v_clamp);
+          u_clamp %= texture->width;
+          v_clamp %= texture->height;
+          int tex_idx = v_clamp * texture->width + u_clamp;
+          assert(tex_idx >= 0 && "tex idx less 0");
+          assert(tex_idx <= texture->width*texture->height*4 && "tex idx oob");
+          U8 tex_b = texture->texels[ 4*(tex_idx)+0];
+          U8 tex_g = texture->texels[ 4*(tex_idx)+1];
+          U8 tex_r = texture->texels[ 4*(tex_idx)+2];
+          //setpix(x,y, packColor( u*255, v*255,0*255));
+          uint32_t texel_lit = mix_colors( packColor(tex_r, tex_g, tex_b), color, .5f);
+          setpix(x,y, texel_lit);
+        }
+      }
+  }
+}
+void draw_flat_top_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, texture_t *texture, uint32_t color)
+{
+  // p0 p1
+  //  p2
+  if(p0.x > p1.x)
+  {
+    vertex_texcoord_t_swap(&p0, &p1);
+  }
+  int x0 = p0.x;
+  int y0 = p0.y;
+  int x1 = p1.x;
+  int y1 = p1.y;
+  int x2 = p2.x;
+  int y2 = p2.y;
+  p0.v = 1.0f - p0.v;
+  p1.v = 1.0f - p1.v;
+  p2.v = 1.0f - p2.v;
+
+  // Find the two slopes (two triangle legs)
+  int height = y2 - y0;
+  if (height==0) return;
+
+  assert(p0.y == p1.y);
+  assert(p0.y < p2.y);
+  assert(p1.y < p2.y);
+
+  float dx_dy1 = (float)(x2 - x0) / height;
+  float dx_dy2 = (float)(x2 - x1) / height;
+
+  // Loop all the scanlines from top to bottom
+  for (int y = y0; y <= y2; y++) {
+      float dy = y - y0;
+      int x_start = x0 + dy * dx_dy1;
+      int x_end = x1 + dy * dx_dy2;
+
+      float tstart = (y-y0)/(float)(y2-y0);
+      assert(tstart>=0.0f && tstart<=1.0f && "tt oob");
+      float u_start = p0.u + tstart*(p2.u-p0.u);
+      float v_start = p0.v + tstart*(p2.v-p0.v);
+
+      float tend = (y-y0)/(float)(y2-y1);
+      assert(tend>=0.0f && tend<=1.0f && "tend oob");
+      float u_end = p1.u + tend*(p2.u-p1.u);
+      float v_end = p1.v + tend*(p2.v-p1.v);
+
+      if (x_start < x_end && (x_end-x_start) > 0 )
+      {
+        if ( (x_end-x_start) > 0 )
+        for(int x=x_start; x<x_end; x++)
+        {
+          float tx = (x-x_start)/(float)(x_end-x_start);
+          assert(tx>=0.0f && tx<=1.0f && "t oob");
+          float u = u_start + tx*(u_end-u_start);
+          float v = v_start + tx*(v_end-v_start);
+          int u_clamp = (int) (u * texture->width);
+          int v_clamp = (int) (v * texture->height);
+          u_clamp = abs(u_clamp);
+          v_clamp = abs(v_clamp);
+          u_clamp %= texture->width;
+          v_clamp %= texture->height;
+          int tex_idx = v_clamp * texture->width + u_clamp;
+          assert(tex_idx >= 0 && "tex idx less 0");
+          assert(tex_idx <= texture->width*texture->height*4 && "tex idx oob");
+          U8 tex_b = texture->texels[ 4*(tex_idx)+0];
+          U8 tex_g = texture->texels[ 4*(tex_idx)+1];
+          U8 tex_r = texture->texels[ 4*(tex_idx)+2];
+          uint32_t texel_lit = mix_colors( packColor(tex_r, tex_g, tex_b), color, .5f);
+          setpix(x,y, texel_lit);
+        }
+      }
+  }
+}
+
+float ivec2_midpoint( ivec2 p0, ivec2 p1, ivec2 p2, int *x, int *y)
+{
+  // Trivially know that my is p1.y
+  int my = p1.y;
+  // Vector from top point to bottom point
+  vec2_t p0p2 = {p2.x - p0.x, p2.y - p0.y};
+  // p0 + t * p0p2 = m
+  // Solve for interpolation value t
+  float t = (p1.y - p0.y) / p0p2.y;
+  int mx = p0.x + t*p0p2.x;
+
+  *x = mx;
+  *y = my;
+  return t;
 }
 
 void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t* colors)
@@ -277,9 +460,44 @@ void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t* col
     } else if (sorted[0].y == sorted[1].y) {
         draw_flat_top(sorted[0], sorted[1], sorted[2], first_color);
     } else {
-        ivec2 midpoint = getMidpointPikuma(sorted[0], sorted[1], sorted[2]);
+        ivec2 midpoint;
+        ivec2_midpoint(sorted[0], sorted[1], sorted[2], &midpoint.x, &midpoint.y);
         draw_flat_bottom(sorted[0], sorted[1], midpoint, first_color);
         draw_flat_top(sorted[1], midpoint, sorted[2], first_color);
     }
+}
 
+void draw_triangle_textured(vertex_texcoord_t vertices[3], texture_t *texture, uint32_t* colors)
+{
+  // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
+  if ( vertices[0].y > vertices[1].y ) {
+      vertex_texcoord_t_swap( &vertices[0], &vertices[1] );
+  }
+  if ( vertices[1].y > vertices[2].y ) {
+      vertex_texcoord_t_swap( &vertices[1], &vertices[2] );
+  }
+  if ( vertices[0].y > vertices[1].y ) {
+      vertex_texcoord_t_swap( &vertices[0], &vertices[1] );
+  }
+
+  uint32_t first_color = colors[0];
+
+  if ( vertices[1].y == vertices[2].y ) {
+      draw_flat_bottom_textured(vertices[0], vertices[1], vertices[2], texture, first_color);
+  } else if (vertices[0].y == vertices[1].y) {
+      draw_flat_top_textured(vertices[0], vertices[1], vertices[2], texture, first_color);
+  } else {
+      vertex_texcoord_t midpoint;
+      float t = ivec2_midpoint(
+        (ivec2){vertices[0].x, vertices[0].y},
+        (ivec2){vertices[1].x, vertices[1].y},
+        (ivec2){vertices[2].x, vertices[2].y},
+        &midpoint.x, &midpoint.y
+      );
+
+      midpoint.u = vertices[0].u + t * (vertices[2].u - vertices[0].u);
+      midpoint.v = vertices[0].v + t * (vertices[2].v - vertices[0].v);
+      draw_flat_bottom_textured(vertices[0], vertices[1], midpoint, texture, first_color);
+      draw_flat_top_textured(vertices[1], midpoint, vertices[2], texture, first_color);
+  }
 }
