@@ -25,7 +25,7 @@ mat4_t proj_matrix;
 mat4_t normal_matrix;
 
 typedef struct {
-    vec3_t a,b;
+    vec4_t a,b;
 } line_t;
 
 bool sort_faces_by_z_enable = true;
@@ -156,6 +156,21 @@ void process_input(void) {
     }// while
 }
 
+vec4_t to_screen_space(vec4_t v)
+{
+  v.x *= (window_width / 2);
+  v.y *= (window_height / 2);
+
+  // Invert screen y coordinate since our display goes from 0 to window_height
+  v.y *= -1;
+
+  v.x += (window_width / 2);
+  v.y += (window_height / 2);
+
+  return v;
+}
+
+
 void update(void) {
 
     // Wait some time until we reach the target frame time
@@ -222,11 +237,9 @@ void update(void) {
     light.position = vec3_from_vec4( mat4_mul_vec4(light_world_matrix, light.position_proj) );
 
     const mat4_t light_mvp = mat4_mul_mat4(proj_matrix, light_world_matrix);
-    light.position_proj = mat4_mul_vec4_project(light_mvp, light.position_proj);
-    light.position_proj.x *= (window_width / 2);
-    light.position_proj.y *= (window_height / 2);
-    light.position_proj.x += (window_width / 2);
-    light.position_proj.y += (window_height / 2);
+    vec4_t light_transformed = mat4_mul_vec4_project(light_mvp, light.position_proj);
+    light.position_proj = to_screen_space(light_transformed);
+
 
     lines_to_render = NULL;
 
@@ -267,12 +280,8 @@ void update(void) {
         triangle_t projected_triangle;
         projected_triangle.z = transformed_center.z;
         for (int j = 0; j < 3; j++) {
-            vec3_t projected_point = vec3_from_vec4(transformed_vertices[j]);
             // Scale and translate the projected points to the middle of the screen
-            projected_point.x *= (window_width / 2);
-            projected_point.y *= (window_height / 2);
-            projected_point.x += (window_width / 2);
-            projected_point.y += (window_height / 2);
+            vec4_t projected_point = to_screen_space(transformed_vertices[j]);
             projected_triangle.points[j].x = projected_point.x;
             projected_triangle.points[j].y = projected_point.y;
             projected_triangle.z = projected_point.z;
@@ -318,18 +327,8 @@ void update(void) {
             array_push(triangles_to_render, projected_triangle);
 
             vec4_t start = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(center) );
-            start.x *= (window_width / 2);
-            start.y *= (window_height / 2);
-            start.x += (window_width / 2);
-            start.y += (window_height / 2);
-
             vec4_t end = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3( vec3_add(center, normal)) );
-            end.x *= (window_width / 2);
-            end.y *= (window_height / 2);
-            end.x += (window_width / 2);
-            end.y += (window_height / 2);
-
-            line_t projected_line = {.a = vec3_from_vec4(start), .b = vec3_from_vec4(end) };
+            line_t projected_line = {.a = to_screen_space(start), .b = to_screen_space(end) };
             array_push(lines_to_render, projected_line);
         }
 
