@@ -4,7 +4,11 @@ src/func.c \
 src/display.c \
 src/vector.c \
 src/mesh.c \
-src/array.c src/matrix.c src/light.c src/texture.c
+src/array.c \
+src/matrix.c \
+src/light.c \
+src/texture.c \
+src/draw_triangle_pikuma.c
 
 #CC specifies which compiler we're using
 #CC = g++ or gcc
@@ -20,7 +24,7 @@ LIBRARY_PATHS = -LC:\dev\SDL2-2.0.14\x86_64-w64-mingw32\lib
 # -w suppresses all warnings
 # -Wl,-subsystem,windows gets rid of the console window
 #COMPILER_FLAGS = -w -Wl,-subsystem,windows -DNO_STDIO_REDIRECT
-COMPILER_FLAGS = -pipe -Wall -Wextra -Wdouble-promotion -Wno-sign-compare -g -o2 -fsanitize-undefined-trap-on-error# -fsanitize=undefined -fsanitize=bounds #-fsanitize=memory
+COMPILER_FLAGS = -pipe -Wall -Wextra -Wno-double-promotion -Wno-sign-compare -g -o2 -fsanitize-undefined-trap-on-error# -fsanitize=undefined -fsanitize=bounds #-fsanitize=memory
 COMPILER_FLAGS := $(COMPILER_FLAGS) -std=c99
 #COMPILER_FLAGS := $(COMPILER_FLAGS) -std=c++0x -fpermissive # compile as C++
 

@@ -13,6 +13,7 @@
 #include "matrix.h"
 #include "light.h"
 #include "texture.h"
+#include "draw_triangle_pikuma.h"
 
 // Review of structs
 typedef struct {
@@ -200,18 +201,18 @@ void update(void) {
     mouse_dy = mouse.y - mouse_oy;
     mouse_ox = mouse.x;
     mouse_oy = mouse.y;
-    if (mouse.left) mesh.rotation.x += .01f*mouse_dx;
+    if (mouse.right) mesh.rotation.x += .01f*mouse_dx;
     if (mouse.right) mesh.rotation.y += .01f*mouse_dy;
     //mesh.rotation.z = 0;
 
-    mesh.rotation.x = .5*time;
-    mesh.rotation.y = .5*time;
-    mesh.rotation.z = 0;
+    //mesh.rotation.x = .5*time;
+    //mesh.rotation.y = .5*time;
+    //mesh.rotation.z = 0;
 
     mesh.translation.x = 0;
-    mesh.translation.y = 0.5f;
+    mesh.translation.y = 0;
     //mesh.translation.z = -40.f + 80.f * mouse.y / (float)window_height;
-    mesh.translation.z = 4.f;
+    mesh.translation.z = 6.5f;
 
     // Create scale, rotation, and translation matrices that will be used to multiply the mesh vertices
     mat4_t scale_matrix = mat4_make_scale(mesh.scale.x, mesh.scale.y, mesh.scale.z);
@@ -299,10 +300,7 @@ void update(void) {
             projected_triangle.points[j].x = projected_point.x;
             projected_triangle.points[j].y = projected_point.y;
             projected_triangle.z = projected_point.z;
-            projected_triangle.colors[0] = face_colors[0];
-            projected_triangle.colors[1] = face_colors[1];
-            projected_triangle.colors[2] = face_colors[2];
-
+            projected_triangle.colors[j] = face_colors[j];
             projected_triangle.texcoords[j] = face_texcoords[j];
         }
 
@@ -352,12 +350,12 @@ void update(void) {
     }
 }
 
-bool getWinding(float x0, float y0, float x1, float y1, float x2, float y2)
+bool getArea(float ax, float ay, float bx, float by, float cx, float cy)
 {
-    vec2_t v0 = {x1-x0, y1-y0};
-    vec2_t v1 = {x2-x0, y2-y0};
-    float dot = v0.x*v1.x + v0.y*v1.y;
-    if (dot > 0) return true;
+    vec2_t ab = vec2_sub( (vec2_t){bx,by}, (vec2_t){ax,ay} );
+    vec2_t ac = vec2_sub( (vec2_t){cx,cy}, (vec2_t){ax,ay} );
+    float area_triangle_abc = (ab.x * ac.y) - (ab.y * ac.x);
+    if (area_triangle_abc > 0) return true;
     return false;
 }
 
@@ -457,7 +455,19 @@ void render(void) {
               vertices[vtx].v = triangle.texcoords[vtx].y;
             }
             texture_t texture = {.texels = (uint8_t*)&REDBRICK_TEXTURE[0], .width=64, .height=64};
-            draw_triangle_textured(vertices, &texture, colors);
+            if (!mouse.left)
+            {
+              draw_triangle_textured(vertices[0], vertices[1], vertices[2], &texture, colors);
+            } else {
+                draw_textured_triangle_p(
+                    vertices[0].x, vertices[0].y, vertices[0].u, vertices[0].v,
+                    vertices[1].x, vertices[1].y, vertices[1].u, vertices[1].v,
+                    vertices[2].x, vertices[2].y, vertices[2].u, vertices[2].v,
+                    REDBRICK_TEXTURE
+                );
+            }
+
+
         }
 
         // Draw triangle wireframe
@@ -529,6 +539,7 @@ int main(int argc, char *argv[])
         mesh_file = argv[1];
     }
     SDL_Log("try to load %s", mesh_file);
+
     is_running = init_window();
 
     setup(mesh_file);
