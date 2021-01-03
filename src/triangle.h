@@ -12,8 +12,11 @@ typedef struct {
 
 typedef struct {
     vec2_t points[3];
+    vec3_t normal;
+    vec3_t center;
     uint32_t colors[3];
     float z;
+
 } triangle_t;
 
 #endif

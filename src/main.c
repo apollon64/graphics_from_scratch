@@ -1,25 +1,28 @@
 #include <stdlib.h>
-#include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
-
-#include <SDL2/SDL.h>
-
 #include <math.h>
 #include <string.h>
+#include <SDL2/SDL.h>
+
 #include "func.h"
 #include "display.h"
 #include "vector.h"
 #include "mesh.h"
 #include "array.h"
 #include "matrix.h"
+#include "light.h"
 
 // Review of structs
 typedef struct {
     vec3_t position;
-    vec3_t rotation;
-    float fov_angle;
 } camera_t;
+
+camera_t camera = {
+    {0, 0, 0},
+};
+mat4_t proj_matrix;
+mat4_t normal_matrix;
 
 typedef struct {
     vec3_t a,b;
@@ -30,13 +33,8 @@ bool display_normals_enable = false;
 triangle_t *triangles_to_render = NULL;
 line_t* lines_to_render = NULL;
 
-camera_t camera = {
-    {0, 0, 0},
-    {0.3, -2.0, 0.0},
-    0.78
-};
-double time = 0;
 
+double time = 0;
 bool is_running = false;
 unsigned int previous_frame_time = 0;
 
@@ -52,6 +50,10 @@ void setup(const char* mesh_file) {
     render_method = RENDER_WIRE;
     cull_method = CULL_BACKFACE;
 
+    float aspect_ratio = window_height / (float) window_width;
+    float fov_angle = PI / 3.0f;
+    proj_matrix = mat4_make_perspective(fov_angle, aspect_ratio, 0.1f, 100.0f);
+
     //load_cube_mesh_data();
     load_obj_file_data(mesh_file);
 }
@@ -63,11 +65,8 @@ uint32_t vec3_to_uint32_t(vec3_t c)
 
 void process_input(void) {
     SDL_Event event;
-    //SDL_PollEvent(&event);
     while ( SDL_PollEvent(&event) )
     {
-        //mouse.left = 0;
-        //mouse.right = 0;
 
         switch(event.type) {
         case SDL_QUIT:
@@ -172,18 +171,23 @@ void update(void) {
     // Initialize the array of triangles to render
     triangles_to_render = NULL;
 
-    float aspect_ratio = window_height / (float) window_width;
-    float fov_angle = PI / 3.0f;
-    mat4_t proj_matrix = mat4_make_perspective(fov_angle, aspect_ratio, 0.1f, 100.0f);
-
-    time += 0.01;
-    mesh.rotation.x = (-.5f+mouse.x / (float)window_width) * 2.f*PI;
-    mesh.rotation.y = (-.5f+mouse.y / (float)window_height) * 2.f*PI;
+    time += 1.0 / (double)FRAME_TARGET_TIME;
+    static float mouse_dx = 0;
+    static float mouse_dy = 0;
+    static float mouse_ox = 0;
+    static float mouse_oy = 0;
+    mouse_dx = mouse.x - mouse_ox;
+    mouse_dy = mouse.y - mouse_oy;
+    mouse_ox = mouse.x;
+    mouse_oy = mouse.y;
+    if (mouse.left) mesh.rotation.x += .01f*mouse_dx;
+    if (mouse.right) mesh.rotation.y += .01f*mouse_dy;
     mesh.rotation.z = 0;
 
     mesh.translation.x = 0;
     mesh.translation.y = 0.5f;
-    mesh.translation.z = 5.5f + 20.f * mouse.y / (float)window_height;
+    //mesh.translation.z = -40.f + 80.f * mouse.y / (float)window_height;
+    mesh.translation.z = 4.f;
 
     // Create scale, rotation, and translation matrices that will be used to multiply the mesh vertices
     mat4_t scale_matrix = mat4_make_scale(mesh.scale.x, mesh.scale.y, mesh.scale.z);
@@ -197,8 +201,32 @@ void update(void) {
     world_matrix = mat4_mul_mat4(rotation_matrix_x, world_matrix);
     world_matrix = mat4_mul_mat4(rotation_matrix_y, world_matrix);
     world_matrix = mat4_mul_mat4(rotation_matrix_z, world_matrix);
+    normal_matrix = world_matrix;
     world_matrix = mat4_mul_mat4(translation_matrix, world_matrix);
-    world_matrix = mat4_mul_mat4(proj_matrix, world_matrix);
+    const mat4_t mvp_matrix = mat4_mul_mat4(proj_matrix, world_matrix);
+
+    light.position.x = 0;
+    light.position.y = 0;
+    light.position.z = 0;
+    light.position_proj = vec4_from_vec3(light.position);
+
+    mat4_t light_world_matrix = mat4_identity();
+
+    //mat4_t light_rotation_matrix_y = mat4_make_rotation_y(.5f*(float)time);
+    //translation_matrix = mat4_make_translation(0,0,-6);
+    //light_world_matrix = mat4_mul_mat4(translation_matrix, light_world_matrix);
+    //light_world_matrix = mat4_mul_mat4(light_rotation_matrix_y, light_world_matrix);
+    translation_matrix = mat4_make_translation(0,0,-5);
+    light_world_matrix = mat4_mul_mat4(translation_matrix, light_world_matrix);
+
+    light.position = vec3_from_vec4( mat4_mul_vec4(light_world_matrix, light.position_proj) );
+
+    const mat4_t light_mvp = mat4_mul_mat4(proj_matrix, light_world_matrix);
+    light.position_proj = mat4_mul_vec4_project(light_mvp, light.position_proj);
+    light.position_proj.x *= (window_width / 2);
+    light.position_proj.y *= (window_height / 2);
+    light.position_proj.x += (window_width / 2);
+    light.position_proj.y += (window_height / 2);
 
     lines_to_render = NULL;
 
@@ -224,13 +252,13 @@ void update(void) {
         center = vec3_mul(center, 1.0f / 3.0f);
 
         // Use a matrix to scale our original vertex
-        vec4_t transformed_center = mat4_mul_vec4(world_matrix, vec4_from_vec3(center) );
+        vec4_t transformed_center = mat4_mul_vec4(mvp_matrix, vec4_from_vec3(center) );
 
         vec4_t transformed_vertices[3];
         // Loop all three vertices of this current face and apply transformations
         for (int j = 0; j < 3; j++) {
             //vec4_t transformed_vertex = mat4_mul_vec4(world_matrix, vec4_from_vec3(face_vertices[j]) );
-            vec4_t transformed_vertex = mat4_mul_vec4_project(world_matrix, vec4_from_vec3(face_vertices[j]) );
+            vec4_t transformed_vertex = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(face_vertices[j]) );
 
             // Save transformed vertex in the array of transformed vertices
             transformed_vertices[j] = transformed_vertex;
@@ -278,23 +306,24 @@ void update(void) {
             {
                 continue;
             }
-            array_push(triangles_to_render, projected_triangle);
-
-
-            vec4_t start = mat4_mul_vec4_project(world_matrix, vec4_from_vec3(center) );
-            start.x *= (window_width / 2);
-            start.y *= (window_height / 2);
-            start.x += (window_width / 2);
-            start.y += (window_height / 2);
-
             vec3_t normal = vec3_cross(
                                 vec3_sub(face_vertices[1],face_vertices[0]),
                                 vec3_sub(face_vertices[2],face_vertices[0])
                             );
 
             vec3_normalize(&normal);
+            projected_triangle.center = center;
+            projected_triangle.normal = normal;
             normal = vec3_mul(normal, 0.125f);
-            vec4_t end = mat4_mul_vec4_project(world_matrix, vec4_from_vec3( vec3_add(center, normal)) );
+            array_push(triangles_to_render, projected_triangle);
+
+            vec4_t start = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(center) );
+            start.x *= (window_width / 2);
+            start.y *= (window_height / 2);
+            start.x += (window_width / 2);
+            start.y += (window_height / 2);
+
+            vec4_t end = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3( vec3_add(center, normal)) );
             end.x *= (window_width / 2);
             end.y *= (window_height / 2);
             end.x += (window_width / 2);
@@ -312,20 +341,9 @@ bool getWinding(float x0, float y0, float x1, float y1, float x2, float y2)
 {
     vec2_t v0 = {x1-x0, y1-y0};
     vec2_t v1 = {x2-x0, y2-y0};
-    float dot= v0.x*v1.x + v0.y*v1.y;
+    float dot = v0.x*v1.x + v0.y*v1.y;
     if (dot > 0) return true;
     return false;
-}
-
-/* this function will be used by qsort to compare elements */
-int cmp(const void *v1, const void *v2) {
-    triangle_t f1=*((triangle_t*)v1);
-    triangle_t f2=*((triangle_t*)v2);
-    if(f1.z < f2.z)
-        return -1;
-    else if(f1.z > f2.z)
-        return 1;
-    return 0;
 }
 
 int cmpLess(const void *triangleA, const void *triangleB) {
@@ -345,7 +363,6 @@ void sort(void)
 }
 
 void render(void) {
-
     clear_color_buffer( packColor(32,32,32) );
     draw_grid();
 
@@ -359,6 +376,10 @@ void render(void) {
 
     // Loop all projected triangles and render them
     uint32_t color = 0xFFFFFFFF;
+    if (light.position_proj.w > 0.1f)
+      circle(light.position_proj.x, light.position_proj.y, 20 - light.position_proj.z);
+    circle(mouse.x, mouse.y, 10);
+
     int num_tris = array_length(triangles_to_render);
     for (int i = 0; i < num_tris; i++) {
         triangle_t triangle = triangles_to_render[i];
@@ -371,7 +392,17 @@ void render(void) {
             //c = c > 255 ? 255.f : c;
             //c = c < 0 ? 0.0f : c;
             //triangle.colors
-            uint32_t colors[3] = {color,color,color};
+            light.direction = vec3_sub(light.position, triangle.center );
+            vec3_normalize(&light.direction);
+
+            vec4_t normal = vec4_from_vec3(triangle.normal);
+            normal.w = 0;
+            vec3_t normalInterp = vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
+            vec3_normalize(&normalInterp);
+            float n_dot_l = vec3_dot(normalInterp, light.direction);
+            if (n_dot_l < 0.0f) n_dot_l = 0.0f;
+            uint32_t color_lit = light_apply_intensity(color, n_dot_l);
+            uint32_t colors[3] = {color_lit,color_lit,color_lit};
 
             draw_triangle(
                 triangle.points[0].x, triangle.points[0].y, // vertex A
@@ -410,7 +441,6 @@ void render(void) {
 
     }
 
-
     //draw_triangle(300, 100, 50, 400, 500, 700, 0xFF00FF00);
 
     // Clear the array of triangles to render every frame loop
@@ -440,23 +470,16 @@ int EndsWith(const char *str, const char *suffix)
 int main(int argc, char *argv[])
 {
     SDL_Log("Hello courses.pikuma.com\n");
-
-
-    for(int i=0; i<argc; i++)
-    {
-        SDL_Log("%d:%s\n", i, argv[i]);
-    }
-    const char* mesh_file = NULL;
+    const char* mesh_file = "./assets/cube.obj";
     if (argc > 1 && EndsWith(argv[1], "obj") )
     {
         mesh_file = argv[1];
-        //mesh_file = "./assets/f22.obj";
-    } else {
-        mesh_file = "./assets/cube.obj";
     }
     SDL_Log("try to load %s", mesh_file);
     is_running = init_window();
+
     setup(mesh_file);
+
     while (is_running) {
         process_input();
         update();

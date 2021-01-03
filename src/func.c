@@ -130,9 +130,14 @@ void circle(int x, int y, int r)
 
 void draw_line(int x0, int y0, int x1, int y1, uint32_t color)
 {
-    if ( abs(x1-x0) == 0 && abs(y1-y0) == 0 ) return;
-    int dx = abs(x1-x0), sx = x0<x1 ? 1 : -1;
-    int dy = abs(y1-y0), sy = y0<y1 ? 1 : -1;
+    int dx = x1-x0;
+    int dy = y1-y0;
+    if ( abs(dx) == 0 && abs(dy) == 0 ) return;
+    if ( abs(dx) > 1e6 && abs(dy) > 1e6 ) return;
+    dx = abs(x1-x0);
+    dy = abs(y1-y0);
+    int sx = x0<x1 ? 1 : -1;
+    int sy = y0<y1 ? 1 : -1;
     int err = (dx>dy ? dx : -dy)/2, e2;
 
     for(;;) {
