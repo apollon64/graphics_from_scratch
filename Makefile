@@ -48,4 +48,4 @@ release : $(OBJS)
 run:
 	./a parameter 1 2 3
 clean:
-	rm ./a
+	rm -f ./a

@@ -517,7 +517,7 @@ void render(void) {
 
     int ms1 = SDL_GetTicks();
 
-    if (!mouse.middle)
+    if (!mouse.right)
     for (int i = 0; i < num_tris; i++) {
         triangle_t triangle = triangles_to_render[i];
 

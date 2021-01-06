@@ -283,14 +283,16 @@ static inline void draw_texel(int x, int y, float u, float v, texture_t* texture
   int tex_idx = tex_y * texture->width + tex_x;
   //assert(tex_idx >= 0 && "tex idx less 0");
   //assert(tex_idx <= texture->width*texture->height*4 && "tex idx oob");
+
   U8 tex_b = texture->texels[ 4*(tex_idx)+0];
   U8 tex_g = texture->texels[ 4*(tex_idx)+1];
   U8 tex_r = texture->texels[ 4*(tex_idx)+2];
+
   //uint32_t color = 0xFFFFFFFF;
   //uint32_t texel_lit = mix_colors( packColor(tex_r, tex_g, tex_b), color, .5f);
   //setpix(x,y, texel_lit);
   setpix(x,y, packColor(tex_r, tex_g, tex_b) );
-  //setpix(x, y, texture->texels[(texture->width * tex_y) + tex_x]);
+  //setpix(x,y, packColor(u*255, v*255, (1-u-v)*255 ) );
 }
 
 float ivec2_midpoint( ivec2 p0, ivec2 p1, ivec2 p2, int *x, int *y)
@@ -360,6 +362,30 @@ static inline vec3_t barycentric_weights_from_coefficents(int x, int y, vec3_t A
   return (vec3_t){ weight0, weight1, weight2 };
 }
 
+static vec3_t barycentric_weights(vec2_t a, vec2_t b, vec2_t c, vec2_t p) {
+    // Find the vectors between the vertices ABC and point p
+    vec2_t ab = vec2_sub(b, a);
+    vec2_t bc = vec2_sub(c, b);
+    vec2_t ac = vec2_sub(c, a);
+    vec2_t ap = vec2_sub(p, a);
+    vec2_t bp = vec2_sub(p, b);
+
+    // Calcualte the area of the full triangle ABC using cross product (area of parallelogram)
+    float area_triangle_abc = (ab.x * ac.y - ab.y * ac.x);
+
+    // Weight alpha is the area of subtriangle BCP divided by the area of the full triangle ABC
+    float alpha = (bc.x * bp.y - bp.x * bc.y) / area_triangle_abc;
+
+    // Weight beta is the area of subtriangle ACP divided by the area of the full triangle ABC
+    float beta = (ap.x * ac.y - ac.x * ap.y) / area_triangle_abc;
+
+    // Weight gamma is easily found since barycentric cooordinates always add up to 1
+    float gamma = 1 - alpha - beta;
+
+    vec3_t weights = { alpha, beta, gamma };
+    return weights;
+}
+
 void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, texture_t *texture, uint32_t* colors, float area2)
 {
   // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
@@ -393,7 +419,6 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
   vec3_t coeffA = vec3_mul(e1,  1.f/area2);
   vec3_t coeffB = vec3_mul(e2,  1.f/area2);
   vec3_t coeffC = vec3_mul(e0,  1.f/area2);
-
 
   p0.u /= p0.w;
   p1.u /= p1.w;
@@ -438,20 +463,13 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
               // Draw our pixel with the color that comes from the texture
               //vec3_t weights = barycentric_weights( (vec2_t){p0.x,p0.y}, (vec2_t){p1.x,p1.y}, (vec2_t){p2.x,p2.y}, (vec2_t){x,y});
               vec3_t weights = barycentric_weights_from_coefficents(x,y,coeffA,coeffB,coeffC);
+
               float u = p0.u * weights.x + p1.u * weights.y + p2.u * weights.z;
               float v = p0.v * weights.x + p1.v * weights.y + p2.v * weights.z;
               // Also interpolate the value of 1/w for the current pixel
-              float one_over_w = p0.w * weights.x + p1.w * weights.y + p2.w * weights.z;
-              u /= one_over_w;
-              v /= one_over_w;
-
-
-              /*float A = weights.x * p1.w * p2.w;
-              float B = weights.y * p0.w * p2.w;
-              float C = weights.z * p2.w * p1.w;
-
-              float u = p0.u * A + p1.u * B + p2.u * C;
-              float v = p0.v * A + p1.v * B + p2.v * C;*/
+              float one_over_one_over_w = 1.0f  /(p0.w * weights.x + p1.w * weights.y + p2.w * weights.z);
+              u *= one_over_one_over_w;
+              v *= one_over_one_over_w;
               draw_texel(x, y, u, v, texture);
           }
       }
@@ -482,17 +500,9 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
             float u = p0.u * weights.x + p1.u * weights.y + p2.u * weights.z;
             float v = p0.v * weights.x + p1.v * weights.y + p2.v * weights.z;
             // Also interpolate the value of 1/w for the current pixel
-            float one_over_w = p0.w * weights.x + p1.w * weights.y + p2.w * weights.z;
-            u /= one_over_w;
-            v /= one_over_w;
-
-
-            /*float A = weights.x * p1.w * p2.w;
-            float B = weights.y * p0.w * p2.w;
-            float C = weights.z * p2.w * p1.w;
-
-            float u = p0.u * A + p1.u * B + p2.u * C;
-            float v = p0.v * A + p1.v * B + p2.v * C;*/
+            float one_over_one_over_w = 1.0f  /(p0.w * weights.x + p1.w * weights.y + p2.w * weights.z);
+            u *= one_over_one_over_w;
+            v *= one_over_one_over_w;
             draw_texel(x, y, u, v, texture);
           }
       }
