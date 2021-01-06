@@ -11,7 +11,7 @@ src/texture.c \
 src/draw_triangle_pikuma.c
 
 #CC specifies which compiler we're using
-#CC = g++ or gcc
+#CC = g++ or gcc or clang or clang++
 CC = clang
 
 #INCLUDE_PATHS specifies the additional include paths we'll need
@@ -28,8 +28,9 @@ COMPILER_FLAGS = -pipe -Wall -Wextra -Wno-double-promotion -Wno-sign-compare -g 
 COMPILER_FLAGS := $(COMPILER_FLAGS) -std=c99
 #COMPILER_FLAGS := $(COMPILER_FLAGS) -std=c++0x -fpermissive # compile as C++
 
-COMPILER_FLAGS_RELEASE = -pipe -Wall -Wextra -Wdouble-promotion -Wno-sign-compare -o3 -DNDEBUG
-COMPILER_FLAGS_RELEASE := $(COMPILER_FLAGS_RELEASE) -std=c99
+COMPILER_FLAGS_RELEASE = -pipe -Wall -Wextra -Wdouble-promotion -Wno-sign-compare -O3 -DNDEBUG
+COMPILER_FLAGS_RELEASE := $(COMPILER_FLAGS_RELEASE) -std=c99 -Os
+#COMPILER_FLAGS_RELEASE := $(COMPILER_FLAGS) -std=c++0x -fpermissive -Os #-ffast-math -Os # compile as C++
 
 #LINKER_FLAGS specifies the libraries we're linking against
 LINKER_FLAGS = -lmingw32 -lSDL2main -lSDL2 -lm

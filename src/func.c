@@ -271,130 +271,26 @@ void draw_flat_top(ivec2 p0, ivec2 p1, ivec2 p2, uint32_t color)
         x_end -= inv_slope_2;
     }
 }
-static void draw_texel(int x, int y, float u, float v, texture_t* texture)
+
+static inline void draw_texel(int x, int y, float u, float v, texture_t* texture)
 {
-  int u_clamp = (int) (u * texture->width);
-  int v_clamp = (int) (v * texture->height);
-  u_clamp = abs(u_clamp);
-  v_clamp = abs(v_clamp);
-  u_clamp %= texture->width;
-  v_clamp %= texture->height;
-  int tex_idx = v_clamp * texture->width + u_clamp;
-  assert(tex_idx >= 0 && "tex idx less 0");
-  assert(tex_idx <= texture->width*texture->height*4 && "tex idx oob");
+  // Map the UV coordinate to the full texture width and height
+  int tex_x = abs((int)(u * texture->width));
+  int tex_y = abs((int)(v * texture->height));
+
+  //u_clamp %= texture->width;
+  //v_clamp %= texture->height;
+  int tex_idx = tex_y * texture->width + tex_x;
+  //assert(tex_idx >= 0 && "tex idx less 0");
+  //assert(tex_idx <= texture->width*texture->height*4 && "tex idx oob");
   U8 tex_b = texture->texels[ 4*(tex_idx)+0];
   U8 tex_g = texture->texels[ 4*(tex_idx)+1];
   U8 tex_r = texture->texels[ 4*(tex_idx)+2];
-  uint32_t color = 0xFFFFFFFF;
-  uint32_t texel_lit = mix_colors( packColor(tex_r, tex_g, tex_b), color, .5f);
-  setpix(x,y, texel_lit);
-  //setpix(x,y, packColor(u*255, v*255, 0) );
-}
-
-void draw_flat_bottom_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, texture_t *texture, uint32_t color)
-{
-  // p0
-  //p1 p2
-  if(p1.x > p2.x)
-  {
-    vertex_texcoord_t_swap(&p1, &p2);
-  }
-
-  int x0 = p0.x;
-  int y0 = p0.y;
-  int x1 = p1.x;
-  int y1 = p1.y;
-  int x2 = p2.x;
-  int y2 = p2.y;
-
-  // Find the two slopes (two triangle legs)
-  int height = y1 - y0;
-  if (height==0) return;
-
-  assert(p0.y < p1.y);
-  assert(p0.y < p2.y);
-  assert(p1.y==p2.y);
-
-  float dx_dy1 = (float)(x1 - x0) / height;
-  float dx_dy2 = (float)(x2 - x0) / height;
-
-  // Loop all the scanlines from top to bottom
-  for (int y = y0; y <= y1; y++) {
-      float dy = y - y0;
-      int x_start = x0 + dy * dx_dy1;
-      int x_end = x0 + dy * dx_dy2;
-      if(x_start > x_end) return;
-
-      float tstart = (y-y0)/(float)(y1-y0);
-      assert(tstart>=0.0f && tstart<=1.0f && "tt oob");
-      float u_start = p0.u + tstart*(p1.u-p0.u);
-      float v_start = p0.v + tstart*(p1.v-p0.v);
-
-      float tend = (y-y0)/(float)(y2-y0);
-      assert(tend>=0.0f && tend<=1.0f && "tend oob");
-      float u_end = p0.u + tend*(p2.u-p0.u);
-      float v_end = p0.v + tend*(p2.v-p0.v);
-
-      for(int x=x_start; x<x_end; x++)
-      {
-        float tx = (x-x_start)/(float)(x_end-x_start);
-        float u = lerp(u_start, u_end, tx);
-        float v = lerp(v_start, v_end, tx);
-        draw_texel(x, y, u, v, texture);
-      }
-  }
-}
-void draw_flat_top_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, texture_t *texture, uint32_t color)
-{
-  // p0 p1
-  //  p2
-  if(p0.x > p1.x)
-  {
-    vertex_texcoord_t_swap(&p0, &p1);
-  }
-  int x0 = p0.x;
-  int y0 = p0.y;
-  int x1 = p1.x;
-  int y1 = p1.y;
-  int x2 = p2.x;
-  int y2 = p2.y;
-
-  // Find the two slopes (two triangle legs)
-  int height = y2 - y0;
-  if (height==0) return;
-
-  assert(p0.y == p1.y);
-  assert(p0.y < p2.y);
-  assert(p1.y < p2.y);
-
-  float dx_dy1 = (float)(x2 - x0) / height;
-  float dx_dy2 = (float)(x2 - x1) / height;
-
-  // Loop all the scanlines from top to bottom
-  for (int y = y0; y <= y2; y++) {
-      float dy = y - y0;
-      int x_start = x0 + dy * dx_dy1;
-      int x_end = x1 + dy * dx_dy2;
-      if(x_start > x_end) return;
-
-      float tstart = (y-y0)/(float)(y2-y0);
-      assert(tstart>=0.0f && tstart<=1.0f && "tt oob");
-      float u_start = p0.u + tstart*(p2.u-p0.u);
-      float v_start = p0.v + tstart*(p2.v-p0.v);
-
-      float tend = (y-y0)/(float)(y2-y1);
-      assert(tend>=0.0f && tend<=1.0f && "tend oob");
-      float u_end = p1.u + tend*(p2.u-p1.u);
-      float v_end = p1.v + tend*(p2.v-p1.v);
-
-      for(int x=x_start; x<x_end; x++)
-      {
-        float tx = (x-x_start)/(float)(x_end-x_start);
-        float u = lerp(u_start, u_end, tx);
-        float v = lerp(v_start, v_end, tx);
-        draw_texel(x, y, u, v, texture);
-      }
-  }
+  //uint32_t color = 0xFFFFFFFF;
+  //uint32_t texel_lit = mix_colors( packColor(tex_r, tex_g, tex_b), color, .5f);
+  //setpix(x,y, texel_lit);
+  setpix(x,y, packColor(tex_r, tex_g, tex_b) );
+  //setpix(x, y, texture->texels[(texture->width * tex_y) + tex_x]);
 }
 
 float ivec2_midpoint( ivec2 p0, ivec2 p1, ivec2 p2, int *x, int *y)
@@ -444,7 +340,27 @@ void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t* col
     }
 }
 
-void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, texture_t *texture, uint32_t* colors)
+
+static inline vec3_t makeEdge(int x0,int y0, int x1, int y1)
+{
+  float refx = 0.0; float refy = 0.0;
+  float dx = x1 - x0;
+  float dy = y1 - y0;
+  float a = -dy;
+  float b = dx;
+  float c = -a * (x0-refx) - b*(y0-refy);
+  return (vec3_t){ a, b, c };
+}
+
+static inline vec3_t barycentric_weights_from_coefficents(int x, int y, vec3_t A, vec3_t B, vec3_t C)
+{
+  float weight0 = x * A.x + y * A.y + A.z;
+  float weight1 = x * B.x + y * B.y + B.z;
+  float weight2 = x * C.x + y * C.y + C.z;
+  return (vec3_t){ weight0, weight1, weight2 };
+}
+
+void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, texture_t *texture, uint32_t* colors, float area2)
 {
   // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
   if ( p0.y > p1.y ) {
@@ -470,22 +386,115 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
 
   uint32_t first_color = colors[0];
 
-  if ( p1.y == p2.y ) {
-      draw_flat_bottom_textured(p0, p1, p2, texture, first_color);
-  } else if (p0.y == p1.y) {
-      draw_flat_top_textured(p0, p1, p2, texture, first_color);
-  } else {
-      vertex_texcoord_t midpoint;
-      float t = ivec2_midpoint(
-        (ivec2){p0.x, p0.y},
-        (ivec2){p1.x, p1.y},
-        (ivec2){p2.x, p2.y},
-        &midpoint.x, &midpoint.y
-      );
+  vec3_t e0 = makeEdge( x0,y0,x1,y1 );
+  vec3_t e1 = makeEdge( x1,y1,x2,y2 );
+  vec3_t e2 = makeEdge( x2,y2,x0,y0 );
+  // Coeffs equal edges, but rotated
+  vec3_t coeffA = vec3_mul(e1,  1.f/area2);
+  vec3_t coeffB = vec3_mul(e2,  1.f/area2);
+  vec3_t coeffC = vec3_mul(e0,  1.f/area2);
 
-      midpoint.u = p0.u + t * (p2.u - p0.u);
-      midpoint.v = p0.v + t * (p2.v - p0.v);
-      draw_flat_bottom_textured(p0, p1, midpoint, texture, first_color);
-      draw_flat_top_textured(p1, midpoint, p2, texture, first_color);
+
+  p0.u /= p0.w;
+  p1.u /= p1.w;
+  p2.u /= p2.w;
+
+  p0.v /= p0.w;
+  p1.v /= p1.w;
+  p2.v /= p2.w;
+
+  p0.w = 1.0f / p0.w;
+  p1.w = 1.0f / p1.w;
+  p2.w = 1.0f / p2.w;
+
+  // Create vector points and texture coords after we sort the vertices
+/*
+  vec4_t point_a = { x0, y0, z0, w0 };
+  vec4_t point_b = { x1, y1, z1, w1 };
+  vec4_t point_c = { x2, y2, z2, w2 };
+  tex2_t a_uv = { u0, v0 };
+  tex2_t b_uv = { u1, v1 };
+  tex2_t c_uv = { u2, v2 };
+*/
+  ///////////////////////////////////////////////////////
+  // Render the upper part of the triangle (flat-bottom)
+  ///////////////////////////////////////////////////////
+  float inv_slope_1 = 0;
+  float inv_slope_2 = 0;
+
+  if (y1 - y0 != 0) inv_slope_1 = (float)(x1 - x0) / abs(y1 - y0);
+  if (y2 - y0 != 0) inv_slope_2 = (float)(x2 - x0) / abs(y2 - y0);
+
+  if (y1 - y0 != 0) {
+      for (int y = y0; y <= y1; y++) {
+          int x_start = x1 + (y - y1) * inv_slope_1;
+          int x_end = x0 + (y - y0) * inv_slope_2;
+
+          if (x_end < x_start) {
+              int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
+          }
+
+          for (int x = x_start; x < x_end; x++) {
+              // Draw our pixel with the color that comes from the texture
+              //vec3_t weights = barycentric_weights( (vec2_t){p0.x,p0.y}, (vec2_t){p1.x,p1.y}, (vec2_t){p2.x,p2.y}, (vec2_t){x,y});
+              vec3_t weights = barycentric_weights_from_coefficents(x,y,coeffA,coeffB,coeffC);
+              float u = p0.u * weights.x + p1.u * weights.y + p2.u * weights.z;
+              float v = p0.v * weights.x + p1.v * weights.y + p2.v * weights.z;
+              // Also interpolate the value of 1/w for the current pixel
+              float one_over_w = p0.w * weights.x + p1.w * weights.y + p2.w * weights.z;
+              u /= one_over_w;
+              v /= one_over_w;
+
+
+              /*float A = weights.x * p1.w * p2.w;
+              float B = weights.y * p0.w * p2.w;
+              float C = weights.z * p2.w * p1.w;
+
+              float u = p0.u * A + p1.u * B + p2.u * C;
+              float v = p0.v * A + p1.v * B + p2.v * C;*/
+              draw_texel(x, y, u, v, texture);
+          }
+      }
+  }
+
+  ///////////////////////////////////////////////////////
+  // Render the bottom part of the triangle (flat-top)
+  ///////////////////////////////////////////////////////
+  inv_slope_1 = 0;
+  inv_slope_2 = 0;
+
+  if (y2 - y1 != 0) inv_slope_1 = (float)(x2 - x1) / abs(y2 - y1);
+  if (y2 - y0 != 0) inv_slope_2 = (float)(x2 - x0) / abs(y2 - y0);
+
+  if (y2 - y1 != 0) {
+      for (int y = y1; y <= y2; y++) {
+          int x_start = x1 + (y - y1) * inv_slope_1;
+          int x_end = x0 + (y - y0) * inv_slope_2;
+
+          if (x_end < x_start) {
+              int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
+          }
+
+          for (int x = x_start; x < x_end; x++) {
+            // Draw our pixel with the color that comes from the texture
+            //vec3_t weights = barycentric_weights( (vec2_t){p0.x,p0.y}, (vec2_t){p1.x,p1.y}, (vec2_t){p2.x,p2.y}, (vec2_t){x,y});
+            vec3_t weights = barycentric_weights_from_coefficents(x,y,coeffA,coeffB,coeffC);
+            float u = p0.u * weights.x + p1.u * weights.y + p2.u * weights.z;
+            float v = p0.v * weights.x + p1.v * weights.y + p2.v * weights.z;
+            // Also interpolate the value of 1/w for the current pixel
+            float one_over_w = p0.w * weights.x + p1.w * weights.y + p2.w * weights.z;
+            u /= one_over_w;
+            v /= one_over_w;
+
+
+            /*float A = weights.x * p1.w * p2.w;
+            float B = weights.y * p0.w * p2.w;
+            float C = weights.z * p2.w * p1.w;
+
+            float u = p0.u * A + p1.u * B + p2.u * C;
+            float v = p0.v * A + p1.v * B + p2.v * C;*/
+            draw_texel(x, y, u, v, texture);
+          }
+      }
   }
 }

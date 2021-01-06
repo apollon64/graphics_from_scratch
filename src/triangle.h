@@ -15,13 +15,13 @@ typedef struct {
 } face_t;
 
 typedef struct {
-    vec2_t points[3];
+    vec4_t points[3];
     vec2_t texcoords[3];
+    uint32_t colors[3];
     vec3_t normal;
     vec3_t center;
-    uint32_t colors[3];
     float z;
-
+    float area2;
 } triangle_t;
 
 #endif
