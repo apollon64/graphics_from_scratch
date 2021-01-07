@@ -1,9 +1,43 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <assert.h>
+
+#include "texture.h"
 
 uint32_t* mesh_texture = NULL;
 int texture_width = 64;
 int texture_height = 64;
+
+upng_t* png_texture = NULL;
+//uint32_t* mesh_texture = NULL;
+
+void load_png_texture_data(char* filename) {
+    png_texture = upng_new_from_file(filename);
+
+    if (png_texture != NULL) {
+        upng_decode(png_texture);
+        upng_error err = upng_get_error(png_texture);
+        if (err == UPNG_EOK) {
+            mesh_texture = (uint32_t*)upng_get_buffer(png_texture);
+            texture_width = upng_get_width(png_texture);
+            texture_height = upng_get_height(png_texture);
+        } else {
+          printf("argh %d\n", err);
+          fprintf(stderr, "arg2 %d\n", err);
+          assert(0);
+        }
+    } else {
+      printf("argh\n");
+      fprintf(stderr, "arg2\n");
+    }
+}
+
+void free_png_texture()
+{
+  upng_free(png_texture);
+  png_texture = NULL;
+}
+
 
 // needs extern "C"  in c++
 const uint8_t REDBRICK_TEXTURE[] = {

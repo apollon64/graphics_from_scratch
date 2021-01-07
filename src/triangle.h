@@ -8,7 +8,6 @@ typedef struct {
     int a;
     int b;
     int c;
-
     int texcoord_a;
     int texcoord_b;
     int texcoord_c;

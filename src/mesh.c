@@ -94,19 +94,27 @@ void load_obj_file_data(const char* filename) {
                 &vertex_indices[2], &texture_indices[2], &normal_indices[2]
             );
             face_t face = {
-                .a = vertex_indices[0],
-                .b = vertex_indices[1],
-                .c = vertex_indices[2],
-                .texcoord_a = texture_indices[0],
-                .texcoord_b = texture_indices[1],
-                .texcoord_c = texture_indices[2],
+                .a = vertex_indices[0] - 1,
+                .b = vertex_indices[1] - 1,
+                .c = vertex_indices[2] - 1,
+                .texcoord_a = texture_indices[0] - 1,
+                .texcoord_b = texture_indices[1] - 1,
+                .texcoord_c = texture_indices[2] - 1,
             };
             array_push(mesh.faces, face);
         }
     }
+
     int vertex_len = array_length(mesh.vertices);
     int texcoord_len = array_length(mesh.texcoords);
     int faces_len = array_length(mesh.faces);
     SDL_Log("loaded mesh, verts:%d, texcoords:%d, faces:%d \n", vertex_len, texcoord_len, faces_len);
     fclose(file);
+}
+
+void free_mesh(mesh_t* mesh)
+{
+  array_free(mesh->vertices);
+  array_free(mesh->texcoords);
+  array_free(mesh->faces);
 }

@@ -2,12 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-
-typedef struct {
-  uint8_t *texels;
-  int width;
-  int height;
-} texture_t;
+#include "texture.h"
 
 typedef struct {
   int x,y;

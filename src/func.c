@@ -70,17 +70,17 @@ uint32_t packColor(U8 r, U8 g, U8 b)
     uint32_t ret = 0;
     U8 a  = 0;
     ret |= a << 24;
-    ret |= r << 16;
+    ret |= b << 16;
     ret |= g << 8;
-    ret |= b << 0;
+    ret |= r << 0;
     return ret;
 }
 
 void unpackColor(uint32_t c, float *r, float *g, float *b)
 {
-  *r = ( (c >> 16) & 0xFF) / 255.f;
+  *b = ( (c >> 16) & 0xFF) / 255.f;
   *g = ( (c >>  8) & 0xFF) / 255.f;
-  *b = ( (c >>  0) & 0xFF) / 255.f;
+  *r = ( (c >>  0) & 0xFF) / 255.f;
 }
 
 uint32_t mix_colors(uint32_t a, uint32_t b, float factor)
@@ -284,9 +284,9 @@ static inline void draw_texel(int x, int y, float u, float v, texture_t* texture
   //assert(tex_idx >= 0 && "tex idx less 0");
   //assert(tex_idx <= texture->width*texture->height*4 && "tex idx oob");
 
-  U8 tex_b = texture->texels[ 4*(tex_idx)+0];
+  U8 tex_r = texture->texels[ 4*(tex_idx)+0];
   U8 tex_g = texture->texels[ 4*(tex_idx)+1];
-  U8 tex_r = texture->texels[ 4*(tex_idx)+2];
+  U8 tex_b = texture->texels[ 4*(tex_idx)+2];
 
   //uint32_t color = 0xFFFFFFFF;
   //uint32_t texel_lit = mix_colors( packColor(tex_r, tex_g, tex_b), color, .5f);

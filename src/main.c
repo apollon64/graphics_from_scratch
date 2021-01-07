@@ -58,6 +58,7 @@ void setup(const char* mesh_file) {
 
     //load_cube_mesh_data();
     load_obj_file_data(mesh_file);
+    load_png_texture_data("assets/cube.png");
 }
 
 uint32_t vec3_to_uint32_t(vec3_t c)
@@ -271,19 +272,19 @@ void update(void) {
         face_t mesh_face = mesh.faces[i];
 
         vec3_t face_vertices[3];
-        face_vertices[0] = mesh.vertices[mesh_face.a - 1]; // Minus 1 because mesh vertices start from 1.
-        face_vertices[1] = mesh.vertices[mesh_face.b - 1];
-        face_vertices[2] = mesh.vertices[mesh_face.c - 1];
+        face_vertices[0] = mesh.vertices[mesh_face.a];
+        face_vertices[1] = mesh.vertices[mesh_face.b];
+        face_vertices[2] = mesh.vertices[mesh_face.c];
 
         vec2_t face_texcoords[3];
-        face_texcoords[0] = mesh.texcoords[mesh_face.texcoord_a - 1]; // Minus 1 because mesh vertices start from 1.
-        face_texcoords[1] = mesh.texcoords[mesh_face.texcoord_b - 1];
-        face_texcoords[2] = mesh.texcoords[mesh_face.texcoord_c - 1];
+        face_texcoords[0] = mesh.texcoords[mesh_face.texcoord_a];
+        face_texcoords[1] = mesh.texcoords[mesh_face.texcoord_b];
+        face_texcoords[2] = mesh.texcoords[mesh_face.texcoord_c];
 
         uint32_t face_colors[3];
-        face_colors[0] = 0xFFFF0000;//vec3_to_uint32_t(mesh.colors[mesh_face.a - 1]); // Minus 1 because mesh vertices start from 1.
-        face_colors[1] = 0xFF00FF00;//vec3_to_uint32_t(mesh.colors[mesh_face.b - 1]);
-        face_colors[2] = 0xFF0000FF;//vec3_to_uint32_t(mesh.colors[mesh_face.c - 1]);
+        face_colors[0] = 0xFFFF0000;//vec3_to_uint32_t(mesh.colors[mesh_face.a ]);
+        face_colors[1] = 0xFF00FF00;//vec3_to_uint32_t(mesh.colors[mesh_face.b ]);
+        face_colors[2] = 0xFF0000FF;//vec3_to_uint32_t(mesh.colors[mesh_face.c ]);
 
         vec3_t center = {0,0,0};
         center = vec3_add(center, face_vertices[0]);
@@ -474,7 +475,8 @@ void render(void) {
               vertices[vtx].u = triangle.texcoords[vtx].x;
               vertices[vtx].v = triangle.texcoords[vtx].y;
             }
-            texture_t texture = {.texels = (uint8_t*)&REDBRICK_TEXTURE[0], .width=64, .height=64};
+            //texture_t texture = {.texels = (uint8_t*)&REDBRICK_TEXTURE[0], .width=64, .height=64};
+            texture_t texture = {.texels = (uint8_t*)&mesh_texture[0], .width=texture_width, .height=texture_height};
             //if (!mouse.left)
             {
               draw_triangle_textured(vertices[0], vertices[1], vertices[2], &texture, colors, triangle.area2);
@@ -579,12 +581,12 @@ void render(void) {
               vertices[vtx].u = triangle.texcoords[vtx].x;
               vertices[vtx].v = triangle.texcoords[vtx].y;
             }
-            texture_t texture = {.texels = (uint8_t*)&REDBRICK_TEXTURE[0], .width=64, .height=64};
+            //texture_t texture = {.texels = (uint8_t*)&mesh_texture[0], .width=texture_width, .height=texture_height};
             draw_textured_triangle_p(
         vertices[0].x, vertices[0].y, vertices[0].z, vertices[0].w, vertices[0].u, vertices[0].v,
         vertices[1].x, vertices[1].y, vertices[1].z, vertices[1].w,  vertices[1].u, vertices[1].v,
         vertices[2].x, vertices[2].y, vertices[2].z, vertices[2].w,  vertices[2].u, vertices[2].v,
-        (uint32_t*) &REDBRICK_TEXTURE[0]
+        mesh_texture
             );
 
         }
@@ -641,10 +643,9 @@ void render(void) {
 }
 
 void free_resources(void) {
+    free_png_texture();
     free(color_buffer);
-    array_free(mesh.vertices);
-    array_free(mesh.texcoords);
-    array_free(mesh.faces);
+    free_mesh(&mesh);
 }
 
 int EndsWith(const char *str, const char *suffix)
