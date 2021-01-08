@@ -3,6 +3,7 @@
 #include "triangle.h"
 #include "draw_triangle_pikuma.h"
 
+#include <assert.h>
 #include <math.h>
 
 static void int_swap(int* a, int* b) {
@@ -36,7 +37,7 @@ static void draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
     float current_y = y0;
 
     for (int i = 0; i <= longest_side_length; i++) {
-        draw_pixel(round(current_x), round(current_y), color);
+        draw_pixel(roundf(current_x), roundf(current_y), color);
         current_x += x_inc;
         current_y += y_inc;
     }
@@ -245,6 +246,9 @@ void draw_texel(
     // Map the UV coordinate to the full texture width and height
     int tex_x = abs((int)(interpolated_u * texture_width));
     int tex_y = abs((int)(interpolated_v * texture_height));
+    tex_x %= texture_width;
+    tex_y %= texture_height;
+    assert( ((texture_width * tex_y) + tex_x) < (texture_width*texture_height) );
 
     draw_pixel(x, y, texture[(texture_width * tex_y) + tex_x]);
 }

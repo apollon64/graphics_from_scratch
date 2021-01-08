@@ -11,7 +11,7 @@ int texture_height = 64;
 upng_t* png_texture = NULL;
 //uint32_t* mesh_texture = NULL;
 
-void load_png_texture_data(char* filename) {
+void load_png_texture_data(const char* filename) {
     png_texture = upng_new_from_file(filename);
 
     if (png_texture != NULL) {
@@ -23,12 +23,9 @@ void load_png_texture_data(char* filename) {
             texture_height = upng_get_height(png_texture);
         } else {
           printf("argh %d\n", err);
-          fprintf(stderr, "arg2 %d\n", err);
+          fprintf(stderr, "upng_get_error: %d\n", err);
           assert(0);
         }
-    } else {
-      printf("argh\n");
-      fprintf(stderr, "arg2\n");
     }
 }
 

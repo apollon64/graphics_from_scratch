@@ -25,7 +25,7 @@ LIBRARY_PATHS = -LC:\dev\SDL2-2.0.14\x86_64-w64-mingw32\lib
 # -w suppresses all warnings
 # -Wl,-subsystem,windows gets rid of the console window
 #COMPILER_FLAGS = -w -Wl,-subsystem,windows -DNO_STDIO_REDIRECT
-COMPILER_FLAGS = -pipe -Wall -Wextra -Wno-double-promotion -Wno-sign-compare -g -o2 -fsanitize-undefined-trap-on-error# -fsanitize=undefined -fsanitize=bounds #-fsanitize=memory
+COMPILER_FLAGS = -pipe -Wall -Wextra -Wno-double-promotion -Wno-sign-compare -g -o2 -fsanitize-undefined-trap-on-error -fsanitize=undefined -fsanitize=bounds #-fsanitize=memory
 COMPILER_FLAGS := $(COMPILER_FLAGS) -std=c99
 #COMPILER_FLAGS := $(COMPILER_FLAGS) -std=c++0x -fpermissive # compile as C++
 

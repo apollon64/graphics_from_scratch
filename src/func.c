@@ -278,11 +278,11 @@ static inline void draw_texel(int x, int y, float u, float v, texture_t* texture
   int tex_x = abs((int)(u * texture->width));
   int tex_y = abs((int)(v * texture->height));
 
-  //u_clamp %= texture->width;
-  //v_clamp %= texture->height;
+  tex_x %= texture->width;
+  tex_y %= texture->height;
   int tex_idx = tex_y * texture->width + tex_x;
-  //assert(tex_idx >= 0 && "tex idx less 0");
-  //assert(tex_idx <= texture->width*texture->height*4 && "tex idx oob");
+  assert(tex_idx >= 0 && "tex idx less 0");
+  assert(tex_idx <= texture->width*texture->height*4 && "tex idx oob");
 
   U8 tex_r = texture->texels[ 4*(tex_idx)+0];
   U8 tex_g = texture->texels[ 4*(tex_idx)+1];
@@ -362,7 +362,7 @@ static inline vec3_t barycentric_weights_from_coefficents(int x, int y, vec3_t A
   return (vec3_t){ weight0, weight1, weight2 };
 }
 
-static vec3_t barycentric_weights(vec2_t a, vec2_t b, vec2_t c, vec2_t p) {
+/*static vec3_t barycentric_weights(vec2_t a, vec2_t b, vec2_t c, vec2_t p) {
     // Find the vectors between the vertices ABC and point p
     vec2_t ab = vec2_sub(b, a);
     vec2_t bc = vec2_sub(c, b);
@@ -384,7 +384,7 @@ static vec3_t barycentric_weights(vec2_t a, vec2_t b, vec2_t c, vec2_t p) {
 
     vec3_t weights = { alpha, beta, gamma };
     return weights;
-}
+}*/
 
 void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, texture_t *texture, uint32_t* colors, float area2)
 {
@@ -410,7 +410,8 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
   int x2 = p2.x;
   int y2 = p2.y;
 
-  uint32_t first_color = colors[0];
+  (void)&colors[0];
+  //uint32_t first_color = colors[0];
 
   vec3_t e0 = makeEdge( x0,y0,x1,y1 );
   vec3_t e1 = makeEdge( x1,y1,x2,y2 );

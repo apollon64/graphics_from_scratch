@@ -45,7 +45,7 @@ struct mouse_t {
     bool left,right,middle;
 } mouse;
 
-void setup(const char* mesh_file) {
+void setup(const char* mesh_file, const char* texture_file) {
     time = 0.0;
 
     // Initialize render mode and triangle culling method
@@ -58,7 +58,7 @@ void setup(const char* mesh_file) {
 
     //load_cube_mesh_data();
     load_obj_file_data(mesh_file);
-    load_png_texture_data("assets/cube.png");
+    load_png_texture_data(texture_file);
 }
 
 uint32_t vec3_to_uint32_t(vec3_t c)
@@ -553,23 +553,17 @@ void render(void) {
 
         // Draw filled triangle
         if (render_method == RENDER_TEXTURED || render_method == RENDER_TEXTURED_WIRE) {
+            //light.direction = vec3_sub(light.position, triangle.center );
+            //vec3_normalize(&light.direction);
 
-            //float z = triangle.z <= 0.f ? 0.01f : triangle.z;
-            //float c = 255-255/5.f*z;
-            //c = c > 255 ? 255.f : c;
-            //c = c < 0 ? 0.0f : c;
-            //triangle.colors
-            light.direction = vec3_sub(light.position, triangle.center );
-            vec3_normalize(&light.direction);
-
-            vec4_t normal = vec4_from_vec3(triangle.normal);
-            normal.w = 0;
-            vec3_t normalInterp = vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
-            vec3_normalize(&normalInterp);
-            float n_dot_l = vec3_dot(normalInterp, light.direction);
-            if (n_dot_l < 0.0f) n_dot_l = 0.0f;
-            uint32_t color_lit = light_apply_intensity(color, n_dot_l);
-            uint32_t colors[3] = {color_lit,color_lit,color_lit};
+            //vec4_t normal = vec4_from_vec3(triangle.normal);
+            //normal.w = 0;
+            //vec3_t normalInterp = vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
+            //vec3_normalize(&normalInterp);
+            //float n_dot_l = vec3_dot(normalInterp, light.direction);
+            //if (n_dot_l < 0.0f) n_dot_l = 0.0f;
+            //uint32_t color_lit = light_apply_intensity(color, n_dot_l);
+            //uint32_t colors[3] = {color_lit,color_lit,color_lit};
 
             vertex_texcoord_t vertices[3];
             for(int vtx=0; vtx<3; vtx++)
@@ -618,9 +612,8 @@ void render(void) {
     numframes++;
     int time1 = ms1 - ms;
     int time2 = ms2 - ms;
-    if (numframes%10==0) SDL_Log("%d my func: %d, pikuma: %d. ms/ms2=%f", numframes, time1, time2, time1/(float)time2);
-
-
+    float timediff = time1/(float)time2;
+    if (numframes%1000==0) SDL_Log("%d my func: %d, pikuma: %d. ms/ms2=%f", numframes, time1, time2, timediff);
 
     if (display_normals_enable)
     {
@@ -663,15 +656,19 @@ int main(int argc, char *argv[])
 {
     SDL_Log("Hello courses.pikuma.com\n");
     const char* mesh_file = "./assets/cube.obj";
-    if (argc > 1 && EndsWith(argv[1], "obj") )
+    const char* texture_file = "./assets/cube.png";
+    for(int i=0; i<argc; i++)
     {
-        mesh_file = argv[1];
+      if (i==0) continue;
+      if (EndsWith(argv[i], "obj") ) { mesh_file = argv[i]; }
+      if (EndsWith(argv[i], "png") ) { texture_file = argv[i]; }
     }
-    SDL_Log("try to load %s", mesh_file);
+
+    SDL_Log("try to load %s and %s", mesh_file, texture_file);
 
     is_running = init_window();
 
-    setup(mesh_file);
+    setup(mesh_file, texture_file);
 
     while (is_running) {
         process_input();
