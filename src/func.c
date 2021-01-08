@@ -291,7 +291,7 @@ static inline void draw_texel(int x, int y, float u, float v, texture_t* texture
   //uint32_t color = 0xFFFFFFFF;
   //uint32_t texel_lit = mix_colors( packColor(tex_r, tex_g, tex_b), color, .5f);
   //setpix(x,y, texel_lit);
-  setpix(x,y, packColor(tex_r, tex_g, tex_b) );
+  setpix(x,y, packColor(tex_r+16, tex_g, tex_b) );
   //setpix(x,y, packColor(u*255, v*255, (1-u-v)*255 ) );
 }
 

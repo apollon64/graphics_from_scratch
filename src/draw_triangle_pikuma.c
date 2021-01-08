@@ -226,6 +226,32 @@ void draw_texel(
     float alpha = weights.x;
     float beta = weights.y;
     float gamma = weights.z;
+    const float EPS = 0.0;
+    if ( alpha < -EPS || beta < -EPS || gamma < -EPS)
+    {
+      draw_pixel(x, y, 0xFF00FF32);// BGR
+      return;
+    }
+    if ( (alpha+beta+gamma) > 1.0f )
+    {
+      draw_pixel(x, y, 0xFF0000FF);// BGR
+      return;
+    }
+    if ( alpha != alpha)
+    {
+      draw_pixel(x, y, 0xFFFFFFFF);// BGR
+      return;
+    }
+    if ( beta != beta)
+    {
+      draw_pixel(x, y, 0xFFFFFFFF);// BGR
+      return;
+    }
+    if ( gamma != gamma)
+    {
+      draw_pixel(x, y, 0xFFFFFFFF);// BGR
+      return;
+    }
 
     // Variables to store the interpolated values of U, V, and also 1/w for the current pixel
     float interpolated_u;
@@ -246,73 +272,68 @@ void draw_texel(
     // Map the UV coordinate to the full texture width and height
     int tex_x = abs((int)(interpolated_u * texture_width));
     int tex_y = abs((int)(interpolated_v * texture_height));
-    tex_x %= texture_width;
-    tex_y %= texture_height;
-    assert( ((texture_width * tex_y) + tex_x) < (texture_width*texture_height) );
-
-    draw_pixel(x, y, texture[(texture_width * tex_y) + tex_x]);
+    //tex_x %= texture_width;
+    //tex_y %= texture_height;
+    bool oob = ((texture_width * tex_y) + tex_x) >= (texture_width*texture_height) ;
+    uint32_t color = oob ? 0xFF0000FF : texture[(texture_width * tex_y) + tex_x];
+    draw_pixel(x, y, color);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Draw a textured triangle based on a texture array of colors.
-// We split the original triangle in two, half flat-bottom and half flat-top.
-///////////////////////////////////////////////////////////////////////////////
-//
-//        v0
-//        /\
-//       /  \
-//      /    \
-//     /      \
-//   v1--------\
-//     \_       \
-//        \_     \
-//           \_   \
-//              \_ \
-//                 \\
-//                   \
-//                    v2
-//
-///////////////////////////////////////////////////////////////////////////////
 void draw_textured_triangle_p(
-    int x0, int y0, float z0, float w0, float u0, float v0,
-    int x1, int y1, float z1, float w1, float u1, float v1,
-    int x2, int y2, float z2, float w2, float u2, float v2,
+    float fx0, float fy0, float z0, float w0, float u0, float v0,
+    float fx1, float fy1, float z1, float w1, float u1, float v1,
+    float fx2, float fy2, float z2, float w2, float u2, float v2,
     uint32_t* texture
 ) {
     // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
-    if (y0 > y1) {
-        int_swap(&y0, &y1);
-        int_swap(&x0, &x1);
+    if (fy0 > fy1) {
+        float_swap(&fy0, &fy1);
+        float_swap(&fx0, &fx1);
         float_swap(&z0, &z1);
         float_swap(&w0, &w1);
         float_swap(&u0, &u1);
         float_swap(&v0, &v1);
     }
-    if (y1 > y2) {
-        int_swap(&y1, &y2);
-        int_swap(&x1, &x2);
+    if (fy1 > fy2) {
+        float_swap(&fy1, &fy2);
+        float_swap(&fx1, &fx2);
         float_swap(&z1, &z2);
         float_swap(&w1, &w2);
         float_swap(&u1, &u2);
         float_swap(&v1, &v2);
     }
-    if (y0 > y1) {
-        int_swap(&y0, &y1);
-        int_swap(&x0, &x1);
+    if (fy0 > fy1) {
+        float_swap(&fy0, &fy1);
+        float_swap(&fx0, &fx1);
         float_swap(&z0, &z1);
         float_swap(&w0, &w1);
         float_swap(&u0, &u1);
         float_swap(&v0, &v1);
     }
 
-    v0 = 1.0f - v0;
-    v1 = 1.0f - v1;
-    v2 = 1.0f - v2;
+    // Flip the V component to account for inverted UV-coordinates (V grows downwards)
+    v0 = 1.0 - v0;
+    v1 = 1.0 - v1;
+    v2 = 1.0 - v2;
+
+    fx0 = fx0 - .5f;
+    fy0 = fy0 - .5f;
+    fx1 = fx1 - .5f;
+    fy1 = fy1 - .5f;
+    fx2 = fx2 - .5f;
+    fy2 = fy2 - .5f;
+
+    //int ix0 = (int)fx0;
+    int iy0 = (int)fy0;
+    //int ix1 = (int)fx1;
+    int iy1 = (int)fy1;
+    //int ix2 = (int)fx2;
+    int iy2 = (int)fy2;
 
     // Create vector points and texture coords after we sort the vertices
-    vec4_t point_a = { x0, y0, z0, w0 };
-    vec4_t point_b = { x1, y1, z1, w1 };
-    vec4_t point_c = { x2, y2, z2, w2 };
+    vec4_t point_a = { fx0, fy0, z0, w0 };
+    vec4_t point_b = { fx1, fy1, z1, w1 };
+    vec4_t point_c = { fx2, fy2, z2, w2 };
     tex2_t a_uv = { u0, v0 };
     tex2_t b_uv = { u1, v1 };
     tex2_t c_uv = { u2, v2 };
@@ -323,13 +344,14 @@ void draw_textured_triangle_p(
     float inv_slope_1 = 0;
     float inv_slope_2 = 0;
 
-    if (y1 - y0 != 0) inv_slope_1 = (float)(x1 - x0) / abs(y1 - y0);
-    if (y2 - y0 != 0) inv_slope_2 = (float)(x2 - x0) / abs(y2 - y0);
+    int scan_height = iy1 - iy0;
+    if (scan_height) inv_slope_1 = (float)(fx1 - fx0) / fabs(fy1 - fy0);
+    if (scan_height) inv_slope_2 = (float)(fx2 - fx0) / fabs(fy2 - fy0);
 
-    if (y1 - y0 != 0) {
-        for (int y = y0; y <= y1; y++) {
-            int x_start = x1 + (y - y1) * inv_slope_1;
-            int x_end = x0 + (y - y0) * inv_slope_2;
+    if (scan_height) {
+        for (int y = ceil(fy0); y < ceil(fy1); y++) {
+            int x_start = ceil(fx1 + (y - fy1) * inv_slope_1);
+            int x_end = ceil(fx0 + (y - fy0) * inv_slope_2);
 
             if (x_end < x_start) {
                 int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
@@ -348,13 +370,14 @@ void draw_textured_triangle_p(
     inv_slope_1 = 0;
     inv_slope_2 = 0;
 
-    if (y2 - y1 != 0) inv_slope_1 = (float)(x2 - x1) / abs(y2 - y1);
-    if (y2 - y0 != 0) inv_slope_2 = (float)(x2 - x0) / abs(y2 - y0);
+    scan_height = iy2 - iy1;
+    if (scan_height) inv_slope_1 = (float)(fx2 - fx1) / fabs(fy2 - fy1);
+    if (scan_height) inv_slope_2 = (float)(fx2 - fx0) / fabs(fy2 - fy0);
 
-    if (y2 - y1 != 0) {
-        for (int y = y1; y <= y2; y++) {
-            int x_start = x1 + (y - y1) * inv_slope_1;
-            int x_end = x0 + (y - y0) * inv_slope_2;
+    if (scan_height) {
+        for (int y = ceil(fy1); y < ceil(fy2); y++) {
+            int x_start = ceil(fx1 + (y - fy1) * inv_slope_1);
+            int x_end = ceil(fx0 + (y - fy0) * inv_slope_2);
 
             if (x_end < x_start) {
                 int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end

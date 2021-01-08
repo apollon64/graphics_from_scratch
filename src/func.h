@@ -5,7 +5,7 @@
 #include "texture.h"
 
 typedef struct {
-  int x,y;
+  float x,y;
   float z,w;
   float u,v;
 } vertex_texcoord_t;

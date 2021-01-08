@@ -225,7 +225,7 @@ void update(void) {
     mesh.translation.x = 0;
     mesh.translation.y = 0;
     //mesh.translation.z = -40.f + 80.f * mouse.y / (float)window_height;
-    mesh.translation.z = 6.5f;
+    mesh.translation.z = 4.5f;
 
     // Create scale, rotation, and translation matrices that will be used to multiply the mesh vertices
     mat4_t scale_matrix = mat4_make_scale(mesh.scale.x, mesh.scale.y, mesh.scale.z);
