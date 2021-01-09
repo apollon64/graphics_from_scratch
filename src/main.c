@@ -569,7 +569,7 @@ void render(void) {
         int num_lines = array_length(lines_to_render);
         for (int i = 0; i < num_lines; i++) {
             line_t line = lines_to_render[i];
-            draw_line(line.a.x, line.a.y, line.b.x, line.b.y, color);
+            draw_line3d(line.a.x, line.a.y, line.a.w, line.b.x, line.b.y, line.b.w, color);
         }
 
     }

@@ -199,6 +199,38 @@ void draw_line(int x0, int y0, int x1, int y1, uint32_t color)
     }
 }
 
+void draw_line3d(int x0, int y0, float w0, int x1, int y1, float w1, uint32_t color)
+{
+  int delta_x = x1-x0;
+  int delta_y = y1-y0;
+  int delta_reciprocal_w = 1.f/w1 - 1.f/w0;
+  if ( abs(delta_x) == 0 && abs(delta_y) == 0 ) return;
+
+  int side_len = abs(delta_x) > abs(delta_y) ? abs(delta_x) : abs(delta_y);
+  float x_inc = delta_x / (float)side_len;
+  float y_inc = delta_y / (float)side_len;
+  float w_inc = delta_reciprocal_w / (float)side_len;
+  float cx = x0;
+  float cy = y0;
+  float cw = 1.f/w0;
+  for(int i=0; i<=side_len; i++) {
+      int x = roundf(cx);
+      int y = roundf(cy);
+      //float one_over_w = lerp(1.f/z0, 1.f/z1, i/(float)side_len );
+      float one_over_w = cw;
+      float interpolated_z = 1.0f - one_over_w;
+      if (interpolated_z < z_buffer[y*window_height+x])
+      {
+         setpix( x, y, color);
+         z_buffer[y*window_height+x] = interpolated_z;
+      }
+      cx += x_inc;
+      cy += y_inc;
+      cw += w_inc;
+  }
+}
+
+
 void draw_line_dda(int x0, int y0, int x1, int y1, uint32_t color)
 {
     int delta_x = x1-x0;

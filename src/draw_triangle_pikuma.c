@@ -230,10 +230,10 @@ void draw_texel(
     if ( alpha < -EPS || beta < -EPS || gamma < -EPS)
     {
         draw_pixel(x, y, 0xFF00FF32);// BGR
-        assert(alpha >= -EPS && "out side of alpha");
-        assert(beta >= -EPS && "out side of beta");
-        assert(gamma >= -EPS && "out side of gamma");
-        assert( (alpha+beta+gamma) <= 1.000001f && "bary out side of 1.");
+        //assert(alpha >= -EPS && "out side of alpha");
+        //assert(beta >= -EPS && "out side of beta");
+        //assert(gamma >= -EPS && "out side of gamma");
+        //assert( (alpha+beta+gamma) <= 1.000001f && "bary out side of 1.");
         return;
     }
     if ( (alpha+beta+gamma) > 1.0f )

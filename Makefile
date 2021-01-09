@@ -37,7 +37,7 @@ COMPILER_FLAGS_RELEASE := $(COMPILER_FLAGS_RELEASE) -std=c99 -Os
 LINKER_FLAGS = -lmingw32 -lSDL2main -lSDL2 -lm
 
 #OBJ_NAME specifies the name of our exectuable
-OBJ_NAME = software_painter
+OBJ_NAME = software_painter.exe
 
 #This is the target that compiles our executable
 all : $(OBJS)
