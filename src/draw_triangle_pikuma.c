@@ -226,31 +226,35 @@ void draw_texel(
     float alpha = weights.x;
     float beta = weights.y;
     float gamma = weights.z;
-    const float EPS = 0.0;
+    const float EPS = 0.00001f;
     if ( alpha < -EPS || beta < -EPS || gamma < -EPS)
     {
-      draw_pixel(x, y, 0xFF00FF32);// BGR
-      return;
+        draw_pixel(x, y, 0xFF00FF32);// BGR
+        assert(alpha >= -EPS && "out side of alpha");
+        assert(beta >= -EPS && "out side of beta");
+        assert(gamma >= -EPS && "out side of gamma");
+        assert( (alpha+beta+gamma) <= 1.000001f && "bary out side of 1.");
+        return;
     }
     if ( (alpha+beta+gamma) > 1.0f )
     {
-      draw_pixel(x, y, 0xFF0000FF);// BGR
-      return;
+        draw_pixel(x, y, 0xFF0000FF);// BGR
+        return;
     }
     if ( alpha != alpha)
     {
-      draw_pixel(x, y, 0xFFFFFFFF);// BGR
-      return;
+        draw_pixel(x, y, 0xFFFFFFFF);// BGR
+        return;
     }
     if ( beta != beta)
     {
-      draw_pixel(x, y, 0xFFFFFFFF);// BGR
-      return;
+        draw_pixel(x, y, 0xFFFFFFFF);// BGR
+        return;
     }
     if ( gamma != gamma)
     {
-      draw_pixel(x, y, 0xFFFFFFFF);// BGR
-      return;
+        draw_pixel(x, y, 0xFFFFFFFF);// BGR
+        return;
     }
 
     // Variables to store the interpolated values of U, V, and also 1/w for the current pixel
@@ -276,7 +280,13 @@ void draw_texel(
     //tex_y %= texture_height;
     bool oob = ((texture_width * tex_y) + tex_x) >= (texture_width*texture_height) ;
     uint32_t color = oob ? 0xFF0000FF : texture[(texture_width * tex_y) + tex_x];
+    /*U8 red = (U8)(alpha*255.f) & 0xFF;
+    U8 green = (U8)(beta*255.f) & 0xFF;
+    U8 blue = (U8)(gamma*255.f) & 0xFF;
+    color = (255u << 24) | (red<<16) | (green<<8) | blue;*/
     draw_pixel(x, y, color);
+
+    //draw_pixel_depth(x,y,color,depth);
 }
 
 void draw_textured_triangle_p(
@@ -312,9 +322,9 @@ void draw_textured_triangle_p(
     }
 
     // Flip the V component to account for inverted UV-coordinates (V grows downwards)
-    v0 = 1.0 - v0;
-    v1 = 1.0 - v1;
-    v2 = 1.0 - v2;
+    v0 = 1.0f - v0;
+    v1 = 1.0f - v1;
+    v2 = 1.0f - v2;
 
     fx0 = fx0 - .5f;
     fy0 = fy0 - .5f;
@@ -345,13 +355,13 @@ void draw_textured_triangle_p(
     float inv_slope_2 = 0;
 
     int scan_height = iy1 - iy0;
-    if (scan_height) inv_slope_1 = (float)(fx1 - fx0) / fabs(fy1 - fy0);
-    if (scan_height) inv_slope_2 = (float)(fx2 - fx0) / fabs(fy2 - fy0);
+    if (scan_height) inv_slope_1 = (float)(fx1 - fx0) / fabsf(fy1 - fy0);
+    if (scan_height) inv_slope_2 = (float)(fx2 - fx0) / fabsf(fy2 - fy0);
 
     if (scan_height) {
-        for (int y = ceil(fy0); y < ceil(fy1); y++) {
-            int x_start = ceil(fx1 + (y - fy1) * inv_slope_1);
-            int x_end = ceil(fx0 + (y - fy0) * inv_slope_2);
+        for (int y = ceilf(fy0); y < ceilf(fy1); y++) {
+            int x_start = ceilf(fx1 + (y - fy1) * inv_slope_1);
+            int x_end = ceilf(fx0 + (y - fy0) * inv_slope_2);
 
             if (x_end < x_start) {
                 int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
@@ -371,13 +381,13 @@ void draw_textured_triangle_p(
     inv_slope_2 = 0;
 
     scan_height = iy2 - iy1;
-    if (scan_height) inv_slope_1 = (float)(fx2 - fx1) / fabs(fy2 - fy1);
-    if (scan_height) inv_slope_2 = (float)(fx2 - fx0) / fabs(fy2 - fy0);
+    if (scan_height) inv_slope_1 = (float)(fx2 - fx1) / fabsf(fy2 - fy1);
+    if (scan_height) inv_slope_2 = (float)(fx2 - fx0) / fabsf(fy2 - fy0);
 
     if (scan_height) {
-        for (int y = ceil(fy1); y < ceil(fy2); y++) {
-            int x_start = ceil(fx1 + (y - fy1) * inv_slope_1);
-            int x_end = ceil(fx0 + (y - fy0) * inv_slope_2);
+        for (int y = ceilf(fy1); y < ceilf(fy2); y++) {
+            int x_start = ceilf(fx1 + (y - fy1) * inv_slope_1);
+            int x_end = ceilf(fx0 + (y - fy0) * inv_slope_2);
 
             if (x_end < x_start) {
                 int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end

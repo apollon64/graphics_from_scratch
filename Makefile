@@ -37,7 +37,7 @@ COMPILER_FLAGS_RELEASE := $(COMPILER_FLAGS_RELEASE) -std=c99 -Os
 LINKER_FLAGS = -lmingw32 -lSDL2main -lSDL2 -lm
 
 #OBJ_NAME specifies the name of our exectuable
-OBJ_NAME = a
+OBJ_NAME = software_painter
 
 #This is the target that compiles our executable
 all : $(OBJS)
@@ -47,6 +47,6 @@ release : $(OBJS)
 		$(CC) $(OBJS) $(INCLUDE_PATHS) $(LIBRARY_PATHS) $(COMPILER_FLAGS_RELEASE) $(LINKER_FLAGS) -o $(OBJ_NAME)
 
 run:
-	./a parameter 1 2 3
+	./software_painter assets/f22.obj assets/f22.png
 clean:
 	rm -f ./a

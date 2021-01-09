@@ -22,17 +22,17 @@ void load_png_texture_data(const char* filename) {
             texture_width = upng_get_width(png_texture);
             texture_height = upng_get_height(png_texture);
         } else {
-          printf("argh %d\n", err);
-          fprintf(stderr, "upng_get_error: %d\n", err);
-          assert(0);
+            printf("argh %d\n", err);
+            fprintf(stderr, "upng_get_error: %d\n", err);
+            assert(0);
         }
     }
 }
 
 void free_png_texture()
 {
-  upng_free(png_texture);
-  png_texture = NULL;
+    upng_free(png_texture);
+    png_texture = NULL;
 }
 
 

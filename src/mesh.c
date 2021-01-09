@@ -114,7 +114,7 @@ void load_obj_file_data(const char* filename) {
 
 void free_mesh(mesh_t* mesh)
 {
-  array_free(mesh->vertices);
-  array_free(mesh->texcoords);
-  array_free(mesh->faces);
+    array_free(mesh->vertices);
+    array_free(mesh->texcoords);
+    array_free(mesh->faces);
 }

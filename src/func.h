@@ -5,9 +5,9 @@
 #include "texture.h"
 
 typedef struct {
-  float x,y;
-  float z,w;
-  float u,v;
+    float x,y;
+    float z,w;
+    float u,v;
 } vertex_texcoord_t;
 
 float lerp (float a, float b, float f);

@@ -153,14 +153,20 @@ vec3_t vec3_rotate_z(vec3_t v, float angle) {
 
 
 vec2_t vec2_from_vec4(vec4_t v) {
-    return (vec2_t) { v.x, v.y };
+    return (vec2_t) {
+        v.x, v.y
+    };
 }
 
 
 vec4_t vec4_from_vec3(vec3_t v) {
-    return (vec4_t) { v.x, v.y, v.z, 1.0 };
+    return (vec4_t) {
+        v.x, v.y, v.z, 1.0
+    };
 }
 
 vec3_t vec3_from_vec4(vec4_t v) {
-    return (vec3_t) { v.x, v.y, v.z };
+    return (vec3_t) {
+        v.x, v.y, v.z
+    };
 }

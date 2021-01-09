@@ -10,6 +10,7 @@ SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_Texture* color_buffer_texture = NULL;
 uint32_t *color_buffer = NULL;
+float *z_buffer = NULL;
 
 bool init_window(void) {
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
@@ -46,8 +47,10 @@ bool init_window(void) {
         return false;
     }
 
-    int bytes = sizeof(uint32_t) * window_width * window_height;
-    color_buffer = (uint32_t*)malloc(bytes);
+    int c_bytes = sizeof(uint32_t) * window_width * window_height;
+    int z_bytes = sizeof(float) * window_width * window_height;
+    color_buffer = (uint32_t*)malloc(c_bytes);
+    z_buffer = (float*)malloc(z_bytes);
 
     color_buffer_texture = SDL_CreateTexture(
                                renderer,
@@ -65,7 +68,12 @@ void clear_color_buffer(uint32_t color) {
     for (size_t i = 0; i < count; i++) {
         color_buffer[i] = color;
     }
-
+}
+void clear_z_buffer(float depth) {
+    size_t count = window_width * window_height;
+    for (size_t i = 0; i < count; i++) {
+        z_buffer[i] = depth;
+    }
 }
 
 void render_color_buffer(void) {

@@ -40,13 +40,17 @@ double time = 0;
 bool is_running = false;
 unsigned int previous_frame_time = 0;
 
-struct mouse_t {
-    int x,y;
+typedef struct {
+    int x,y,z;
     bool left,right,middle;
-} mouse;
+} mouse_t;
+mouse_t mouse;
 
 void setup(const char* mesh_file, const char* texture_file) {
     time = 0.0;
+    mouse = (mouse_t) {
+        .x=0,.y=0,.z=0,.left=0,.right=0
+    };
 
     // Initialize render mode and triangle culling method
     render_method = RENDER_WIRE;
@@ -63,7 +67,7 @@ void setup(const char* mesh_file, const char* texture_file) {
 
 uint32_t vec3_to_uint32_t(vec3_t c)
 {
-   return packColor( (U8)c.x*255, (U8)c.y*255, (U8)c.z*255);
+    return packColor( (U8)c.x*255, (U8)c.y*255, (U8)c.z*255);
 }
 
 void process_input(void) {
@@ -88,7 +92,7 @@ void process_input(void) {
             if (event.key.keysym.sym == SDLK_4)
                 render_method = RENDER_FILL_TRIANGLE_WIRE;
             if (event.key.keysym.sym == SDLK_5)
-               render_method = RENDER_TEXTURED;
+                render_method = RENDER_TEXTURED;
             if (event.key.keysym.sym == SDLK_6)
                 render_method = RENDER_TEXTURED_WIRE;
             if (event.key.keysym.sym == SDLK_c)
@@ -171,24 +175,55 @@ void process_input(void) {
             }
         }
         break;
+
+        case SDL_MOUSEWHEEL:
+        {
+            if(event.wheel.y > 0) // scroll up
+            {
+                mouse.z--;
+            }
+            else if(event.wheel.y < 0) // scroll down
+            {
+                // Put code for handling "scroll down" here!
+                mouse.z++;
+            }
+        }
+        break;
         }
     }// while
 }
 
 vec4_t to_screen_space(vec4_t v)
 {
-  v.x *= (window_width / 2);
-  v.y *= (window_height / 2);
+    v.x *= (window_width / 2.0f);
+    v.y *= (window_height / 2.0f);
 
-  // Invert screen y coordinate since our display goes from 0 to window_height
-  v.y *= -1;
+    // Invert screen y coordinate since our display goes from 0 to window_height
+    v.y *= -1;
 
-  v.x += (window_width / 2);
-  v.y += (window_height / 2);
+    v.x += (window_width / 2.0f);
+    v.y += (window_height / 2.0f);
 
-  return v;
+    return v;
 }
 
+static bool isBackface(float ax, float ay, float bx, float by, float cx, float cy)
+{
+    vec2_t ab = vec2_sub( (vec2_t) {
+        bx,by
+    }, (vec2_t) {
+        ax,ay
+    } );
+    vec2_t ac = vec2_sub( (vec2_t) {
+        cx,cy
+    }, (vec2_t) {
+        ax,ay
+    } );
+    if (ac.x*ab.y >= ac.y*ab.x) return 1; // change to < for right hand coords
+    return 0;
+    //float area2 = (ab.x * ac.y) - (ab.y * ac.x);
+    //return area2;
+}
 
 void update(void) {
 
@@ -225,7 +260,7 @@ void update(void) {
     mesh.translation.x = 0;
     mesh.translation.y = 0;
     //mesh.translation.z = -40.f + 80.f * mouse.y / (float)window_height;
-    mesh.translation.z = 4.5f;
+    mesh.translation.z = 3.5f + mouse.z;
 
     // Create scale, rotation, and translation matrices that will be used to multiply the mesh vertices
     mat4_t scale_matrix = mat4_make_scale(mesh.scale.x, mesh.scale.y, mesh.scale.z);
@@ -332,11 +367,16 @@ void update(void) {
 
         // Find the vector between a point in the triangle and camera origin
         vec3_t camera_ray = vec3_sub(camera.position, vector_a);
-
         float rayDotNormal = vec3_dot(camera_ray, normal);
 
         // Bypass the triangles looking away from camera
+        bool backfacing = isBackface(
+                              projected_triangle.points[0].x, projected_triangle.points[0].y,
+                              projected_triangle.points[1].x, projected_triangle.points[1].y,
+                              projected_triangle.points[2].x, projected_triangle.points[2].y
+                          );
         bool front_facing = rayDotNormal > 0.0f;
+        front_facing = !backfacing;
 
         //if (cull_method == CULL_BACKFACE && front_facing)
         {
@@ -366,15 +406,6 @@ void update(void) {
     }
 }
 
-bool getArea(float ax, float ay, float bx, float by, float cx, float cy)
-{
-    vec2_t ab = vec2_sub( (vec2_t){bx,by}, (vec2_t){ax,ay} );
-    vec2_t ac = vec2_sub( (vec2_t){cx,cy}, (vec2_t){ax,ay} );
-    float area_triangle_abc = (ab.x * ac.y) - (ab.y * ac.x);
-    if (area_triangle_abc > 0) return true;
-    return false;
-}
-
 int cmpLess(const void *triangleA, const void *triangleB) {
     triangle_t a=*((triangle_t*)triangleA);
     triangle_t b=*((triangle_t*)triangleB);
@@ -391,8 +422,118 @@ void sort(void)
     qsort(triangles_to_render, num_tris, sizeof(triangle_t), cmpLess);
 }
 
+void draw_list_of_triangles(int option)
+{
+    int num_tris = array_length(triangles_to_render);
+    uint32_t color = packColor(255,255,255);
+    //if (!mouse.left)
+    for (int i = 0; i < num_tris; i++) {
+        triangle_t triangle = triangles_to_render[i];
+
+        // Draw filled triangle
+        if (render_method == RENDER_FILL_TRIANGLE || render_method == RENDER_FILL_TRIANGLE_WIRE) {
+
+            //float z = triangle.z <= 0.f ? 0.01f : triangle.z;
+            //float c = 255-255/5.f*z;
+            //c = c > 255 ? 255.f : c;
+            //c = c < 0 ? 0.0f : c;
+            //triangle.colors
+            light.direction = vec3_sub(light.position, triangle.center );
+            vec3_normalize(&light.direction);
+
+            vec4_t normal = vec4_from_vec3(triangle.normal);
+            normal.w = 0;
+            vec3_t normalInterp = vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
+            vec3_normalize(&normalInterp);
+            float n_dot_l = vec3_dot(normalInterp, light.direction);
+            if (n_dot_l < 0.0f) n_dot_l = 0.0f;
+            uint32_t color_lit = light_apply_intensity(color, n_dot_l);
+            uint32_t colors[3] = {color_lit,color_lit,color_lit};
+
+            draw_triangle(
+                triangle.points[0].x, triangle.points[0].y, // vertex A
+                triangle.points[1].x, triangle.points[1].y, // vertex B
+                triangle.points[2].x, triangle.points[2].y, // vertex C
+                colors
+            );
+        }
+
+        // Draw filled triangle
+        if (render_method == RENDER_TEXTURED || render_method == RENDER_TEXTURED_WIRE) {
+
+            //float z = triangle.z <= 0.f ? 0.01f : triangle.z;
+            //float c = 255-255/5.f*z;
+            //c = c > 255 ? 255.f : c;
+            //c = c < 0 ? 0.0f : c;
+            //triangle.colors
+            light.direction = vec3_sub(light.position, triangle.center );
+            vec3_normalize(&light.direction);
+
+            vec4_t normal = vec4_from_vec3(triangle.normal);
+            normal.w = 0;
+            vec3_t normalInterp = vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
+            vec3_normalize(&normalInterp);
+            float n_dot_l = vec3_dot(normalInterp, light.direction);
+            if (n_dot_l < 0.0f) n_dot_l = 0.0f;
+            uint32_t color_lit = light_apply_intensity(color, n_dot_l);
+            uint32_t colors[3] = {color_lit,color_lit,color_lit};
+
+            vertex_texcoord_t vertices[3];
+            for(int vtx=0; vtx<3; vtx++)
+            {
+                vertices[vtx].x = triangle.points[vtx].x;
+                vertices[vtx].y = triangle.points[vtx].y;
+                vertices[vtx].z = triangle.points[vtx].z;
+                vertices[vtx].w = triangle.points[vtx].w;
+                vertices[vtx].u = triangle.texcoords[vtx].x;
+                vertices[vtx].v = triangle.texcoords[vtx].y;
+            }
+
+            if (option==0)
+            {
+                //texture_t texture = {.texels = (uint8_t*)&REDBRICK_TEXTURE[0], .width=64, .height=64};
+                texture_t texture = {.texels = (uint8_t*)&mesh_texture[0], .width=texture_width, .height=texture_height};
+                draw_triangle_textured(vertices[0], vertices[1], vertices[2], &texture, colors, triangle.area2);
+            }
+            else
+            {
+                //texture_t texture = {.texels = (uint8_t*)&mesh_texture[0], .width=texture_width, .height=texture_height};
+                draw_textured_triangle_p(
+                    vertices[0].x, vertices[0].y, vertices[0].z, vertices[0].w, vertices[0].u, vertices[0].v,
+                    vertices[1].x, vertices[1].y, vertices[1].z, vertices[1].w,  vertices[1].u, vertices[1].v,
+                    vertices[2].x, vertices[2].y, vertices[2].z, vertices[2].w,  vertices[2].u, vertices[2].v,
+                    mesh_texture
+                );
+            }
+        }
+
+
+        // Draw triangle wireframe
+        if (render_method == RENDER_WIRE ||
+                render_method == RENDER_WIRE_VERTEX ||
+                render_method == RENDER_FILL_TRIANGLE_WIRE ||
+                render_method == RENDER_TEXTURED_WIRE
+           ) {
+            draw_triangle_lines(
+                triangle.points[0].x, triangle.points[0].y, // vertex A
+                triangle.points[1].x, triangle.points[1].y, // vertex B
+                triangle.points[2].x, triangle.points[2].y, // vertex C
+                0xFF000000
+            );
+        }
+
+        // Draw triangle vertex points
+        if (render_method == RENDER_WIRE_VERTEX) {
+            draw_rect(triangle.points[0].x - 3, triangle.points[0].y - 3, 6, 6, 0xFFFF0000); // vertex A
+            draw_rect(triangle.points[1].x - 3, triangle.points[1].y - 3, 6, 6, 0xFFFF0000); // vertex B
+            draw_rect(triangle.points[2].x - 3, triangle.points[2].y - 3, 6, 6, 0xFFFF0000); // vertex C
+        }
+    }
+}
+
 void render(void) {
-    clear_color_buffer( packColor(32,32,32) );
+    clear_color_buffer( packColor(64,64,64) );
+    clear_z_buffer( 1.0f );
     draw_grid();
 
     vec3_t centerPos = {0,0,0};
@@ -406,214 +547,21 @@ void render(void) {
     // Loop all projected triangles and render them
     uint32_t color = 0xFFFFFFFF;
     if (light.position_proj.w > 0.1f)
-      circle(light.position_proj.x, light.position_proj.y, 20 - light.position_proj.z);
+        circle(light.position_proj.x, light.position_proj.y, 20 - light.position_proj.z);
     circle(mouse.x, mouse.y, 10);
 
     int ms = SDL_GetTicks();
-
-    int num_tris = array_length(triangles_to_render);
-
-    if (!mouse.left)
-    for (int i = 0; i < num_tris; i++) {
-        triangle_t triangle = triangles_to_render[i];
-
-        // Draw filled triangle
-        if (render_method == RENDER_FILL_TRIANGLE || render_method == RENDER_FILL_TRIANGLE_WIRE) {
-
-            //float z = triangle.z <= 0.f ? 0.01f : triangle.z;
-            //float c = 255-255/5.f*z;
-            //c = c > 255 ? 255.f : c;
-            //c = c < 0 ? 0.0f : c;
-            //triangle.colors
-            light.direction = vec3_sub(light.position, triangle.center );
-            vec3_normalize(&light.direction);
-
-            vec4_t normal = vec4_from_vec3(triangle.normal);
-            normal.w = 0;
-            vec3_t normalInterp = vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
-            vec3_normalize(&normalInterp);
-            float n_dot_l = vec3_dot(normalInterp, light.direction);
-            if (n_dot_l < 0.0f) n_dot_l = 0.0f;
-            uint32_t color_lit = light_apply_intensity(color, n_dot_l);
-            uint32_t colors[3] = {color_lit,color_lit,color_lit};
-
-            draw_triangle(
-                triangle.points[0].x, triangle.points[0].y, // vertex A
-                triangle.points[1].x, triangle.points[1].y, // vertex B
-                triangle.points[2].x, triangle.points[2].y, // vertex C
-                colors
-            );
-        }
-
-        // Draw filled triangle
-        if (render_method == RENDER_TEXTURED || render_method == RENDER_TEXTURED_WIRE) {
-
-            //float z = triangle.z <= 0.f ? 0.01f : triangle.z;
-            //float c = 255-255/5.f*z;
-            //c = c > 255 ? 255.f : c;
-            //c = c < 0 ? 0.0f : c;
-            //triangle.colors
-            light.direction = vec3_sub(light.position, triangle.center );
-            vec3_normalize(&light.direction);
-
-            vec4_t normal = vec4_from_vec3(triangle.normal);
-            normal.w = 0;
-            vec3_t normalInterp = vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
-            vec3_normalize(&normalInterp);
-            float n_dot_l = vec3_dot(normalInterp, light.direction);
-            if (n_dot_l < 0.0f) n_dot_l = 0.0f;
-            uint32_t color_lit = light_apply_intensity(color, n_dot_l);
-            uint32_t colors[3] = {color_lit,color_lit,color_lit};
-
-            vertex_texcoord_t vertices[3];
-            for(int vtx=0; vtx<3; vtx++)
-            {
-              vertices[vtx].x = triangle.points[vtx].x;
-              vertices[vtx].y = triangle.points[vtx].y;
-              vertices[vtx].z = triangle.points[vtx].z;
-              vertices[vtx].w = triangle.points[vtx].w;
-              vertices[vtx].u = triangle.texcoords[vtx].x;
-              vertices[vtx].v = triangle.texcoords[vtx].y;
-            }
-            //texture_t texture = {.texels = (uint8_t*)&REDBRICK_TEXTURE[0], .width=64, .height=64};
-            texture_t texture = {.texels = (uint8_t*)&mesh_texture[0], .width=texture_width, .height=texture_height};
-            //if (!mouse.left)
-            {
-              draw_triangle_textured(vertices[0], vertices[1], vertices[2], &texture, colors, triangle.area2);
-            }
-            /*else {
-                draw_textured_triangle_p(
-                    vertices[0].x, vertices[0].y, vertices[0].u, vertices[0].v,
-                    vertices[1].x, vertices[1].y, vertices[1].u, vertices[1].v,
-                    vertices[2].x, vertices[2].y, vertices[2].u, vertices[2].v,
-                    (uint32_t*) &REDBRICK_TEXTURE[0]
-                );
-            }
-            */
-
-
-        }
-
-
-        // Draw triangle wireframe
-        if (render_method == RENDER_WIRE ||
-          render_method == RENDER_WIRE_VERTEX ||
-          render_method == RENDER_FILL_TRIANGLE_WIRE ||
-          render_method == RENDER_TEXTURED_WIRE
-        ) {
-            draw_triangle_lines(
-                triangle.points[0].x, triangle.points[0].y, // vertex A
-                triangle.points[1].x, triangle.points[1].y, // vertex B
-                triangle.points[2].x, triangle.points[2].y, // vertex C
-                0xFF000000
-            );
-        }
-
-        // Draw triangle vertex points
-        if (render_method == RENDER_WIRE_VERTEX) {
-            draw_rect(triangle.points[0].x - 3, triangle.points[0].y - 3, 6, 6, 0xFFFF0000); // vertex A
-            draw_rect(triangle.points[1].x - 3, triangle.points[1].y - 3, 6, 6, 0xFFFF0000); // vertex B
-            draw_rect(triangle.points[2].x - 3, triangle.points[2].y - 3, 6, 6, 0xFFFF0000); // vertex C
-        }
-    }
-
+    draw_list_of_triangles(0);
     int ms1 = SDL_GetTicks();
-
-    if (!mouse.right)
-    for (int i = 0; i < num_tris; i++) {
-        triangle_t triangle = triangles_to_render[i];
-
-        // Draw filled triangle
-        if (render_method == RENDER_FILL_TRIANGLE || render_method == RENDER_FILL_TRIANGLE_WIRE) {
-
-            //float z = triangle.z <= 0.f ? 0.01f : triangle.z;
-            //float c = 255-255/5.f*z;
-            //c = c > 255 ? 255.f : c;
-            //c = c < 0 ? 0.0f : c;
-            //triangle.colors
-            light.direction = vec3_sub(light.position, triangle.center );
-            vec3_normalize(&light.direction);
-
-            vec4_t normal = vec4_from_vec3(triangle.normal);
-            normal.w = 0;
-            vec3_t normalInterp = vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
-            vec3_normalize(&normalInterp);
-            float n_dot_l = vec3_dot(normalInterp, light.direction);
-            if (n_dot_l < 0.0f) n_dot_l = 0.0f;
-            uint32_t color_lit = light_apply_intensity(color, n_dot_l);
-            uint32_t colors[3] = {color_lit,color_lit,color_lit};
-
-            draw_triangle(
-                triangle.points[0].x, triangle.points[0].y, // vertex A
-                triangle.points[1].x, triangle.points[1].y, // vertex B
-                triangle.points[2].x, triangle.points[2].y, // vertex C
-                colors
-            );
-        }
-
-        // Draw filled triangle
-        if (render_method == RENDER_TEXTURED || render_method == RENDER_TEXTURED_WIRE) {
-            //light.direction = vec3_sub(light.position, triangle.center );
-            //vec3_normalize(&light.direction);
-
-            //vec4_t normal = vec4_from_vec3(triangle.normal);
-            //normal.w = 0;
-            //vec3_t normalInterp = vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
-            //vec3_normalize(&normalInterp);
-            //float n_dot_l = vec3_dot(normalInterp, light.direction);
-            //if (n_dot_l < 0.0f) n_dot_l = 0.0f;
-            //uint32_t color_lit = light_apply_intensity(color, n_dot_l);
-            //uint32_t colors[3] = {color_lit,color_lit,color_lit};
-
-            vertex_texcoord_t vertices[3];
-            for(int vtx=0; vtx<3; vtx++)
-            {
-              vertices[vtx].x = triangle.points[vtx].x;
-              vertices[vtx].y = triangle.points[vtx].y;
-              vertices[vtx].z = triangle.points[vtx].z;
-              vertices[vtx].w = triangle.points[vtx].w;
-              vertices[vtx].u = triangle.texcoords[vtx].x;
-              vertices[vtx].v = triangle.texcoords[vtx].y;
-            }
-            //texture_t texture = {.texels = (uint8_t*)&mesh_texture[0], .width=texture_width, .height=texture_height};
-            draw_textured_triangle_p(
-        vertices[0].x, vertices[0].y, vertices[0].z, vertices[0].w, vertices[0].u, vertices[0].v,
-        vertices[1].x, vertices[1].y, vertices[1].z, vertices[1].w,  vertices[1].u, vertices[1].v,
-        vertices[2].x, vertices[2].y, vertices[2].z, vertices[2].w,  vertices[2].u, vertices[2].v,
-        mesh_texture
-            );
-
-        }
-
-        // Draw triangle wireframe
-        if (render_method == RENDER_WIRE ||
-          render_method == RENDER_WIRE_VERTEX ||
-          render_method == RENDER_FILL_TRIANGLE_WIRE ||
-          render_method == RENDER_TEXTURED_WIRE
-        ) {
-            draw_triangle_lines(
-                triangle.points[0].x, triangle.points[0].y, // vertex A
-                triangle.points[1].x, triangle.points[1].y, // vertex B
-                triangle.points[2].x, triangle.points[2].y, // vertex C
-                0xFF000000
-            );
-        }
-
-        // Draw triangle vertex points
-        if (render_method == RENDER_WIRE_VERTEX) {
-            draw_rect(triangle.points[0].x - 3, triangle.points[0].y - 3, 6, 6, 0xFFFF0000); // vertex A
-            draw_rect(triangle.points[1].x - 3, triangle.points[1].y - 3, 6, 6, 0xFFFF0000); // vertex B
-            draw_rect(triangle.points[2].x - 3, triangle.points[2].y - 3, 6, 6, 0xFFFF0000); // vertex C
-        }
-    }
-
+    draw_list_of_triangles(1);
     int ms2 = SDL_GetTicks();
     static int numframes=0;
     numframes++;
     int time1 = ms1 - ms;
     int time2 = ms2 - ms;
-    float timediff = time1/(float)time2;
-    if (numframes%1000==0) SDL_Log("%d my func: %d, pikuma: %d. ms/ms2=%f", numframes, time1, time2, timediff);
+    float timediff = 0.f;
+    if (time2>0 && time1>0) timediff = time1/(float)time2;
+    if (numframes%100==0) SDL_Log("%d my func: %d, pikuma: %d. ms/ms2=%f", numframes, time1, time2, (double)timediff);
 
     if (display_normals_enable)
     {
@@ -627,6 +575,12 @@ void render(void) {
     }
 
     //draw_triangle(300, 100, 50, 400, 500, 700, 0xFF00FF00);
+    /*draw_textured_triangle_p(
+    300, 100, 0.0f, 1.0f, 0.0f, 0.0f,
+    50, 400, 0.0f, 1.0f, 0.0f, 1.0f,
+    500, 700, 0.0f, 1.0f, 1.0f, 1.0f,
+    mesh_texture
+    );*/
 
     // Clear the array of triangles to render every frame loop
     array_free(lines_to_render);
@@ -638,6 +592,7 @@ void render(void) {
 void free_resources(void) {
     free_png_texture();
     free(color_buffer);
+    free(z_buffer);
     free_mesh(&mesh);
 }
 
@@ -659,9 +614,13 @@ int main(int argc, char *argv[])
     const char* texture_file = "./assets/cube.png";
     for(int i=0; i<argc; i++)
     {
-      if (i==0) continue;
-      if (EndsWith(argv[i], "obj") ) { mesh_file = argv[i]; }
-      if (EndsWith(argv[i], "png") ) { texture_file = argv[i]; }
+        if (i==0) continue;
+        if (EndsWith(argv[i], "obj") ) {
+            mesh_file = argv[i];
+        }
+        if (EndsWith(argv[i], "png") ) {
+            texture_file = argv[i];
+        }
     }
 
     SDL_Log("try to load %s and %s", mesh_file, texture_file);

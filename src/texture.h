@@ -10,9 +10,9 @@ typedef struct {
 } tex2_t;
 
 typedef struct {
-  uint8_t *texels;
-  int width;
-  int height;
+    uint8_t *texels;
+    int width;
+    int height;
 } texture_t;
 
 extern int texture_width;

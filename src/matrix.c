@@ -7,11 +7,12 @@ mat4_t mat4_identity(void) {
     // | 0 0 1 0 |
     // | 0 0 0 1 |
     mat4_t m = {{
-        { 1, 0, 0, 0 },
-        { 0, 1, 0, 0 },
-        { 0, 0, 1, 0 },
-        { 0, 0, 0, 1 }
-    }};
+            { 1, 0, 0, 0 },
+            { 0, 1, 0, 0 },
+            { 0, 0, 1, 0 },
+            { 0, 0, 0, 1 }
+        }
+    };
     return m;
 }
 
@@ -94,41 +95,41 @@ vec4_t mat4_mul_vec4(mat4_t m, vec4_t v) {
 }
 
 mat4_t mat4_mul_mat4(mat4_t a, mat4_t b) {
-  mat4_t result;
-  for(int r=0; r<4; r++)
-  {
-    for(int c=0; c<4; c++)
+    mat4_t result;
+    for(int r=0; r<4; r++)
     {
-        // dot A rows and B columns
-        result.m[r][c] =
-        a.m[r][0] * b.m[0][c] +
-        a.m[r][1] * b.m[1][c] +
-        a.m[r][2] * b.m[2][c] +
-        a.m[r][3] * b.m[3][c];
-    }
+        for(int c=0; c<4; c++)
+        {
+            // dot A rows and B columns
+            result.m[r][c] =
+                a.m[r][0] * b.m[0][c] +
+                a.m[r][1] * b.m[1][c] +
+                a.m[r][2] * b.m[2][c] +
+                a.m[r][3] * b.m[3][c];
+        }
 
-  }
-  return result;
+    }
+    return result;
 }
 
 mat4_t mat4_make_perspective(float fov, float aspect, float znear, float zfar) {
-  mat4_t m = mat4_identity();
-  m.m[0][0] = aspect * (1.0f / tanf(fov/2.f));
-  m.m[1][1] = 1.0f / tanf(fov/2.f);
-  m.m[2][2] = zfar / (zfar - znear);
-  m.m[2][3] = (-zfar*znear) / (zfar - znear);
-  m.m[3][2] = 1.0f;
-  return m;
+    mat4_t m = mat4_identity();
+    m.m[0][0] = aspect * (1.0f / tanf(fov/2.f));
+    m.m[1][1] = 1.0f / tanf(fov/2.f);
+    m.m[2][2] = zfar / (zfar - znear);
+    m.m[2][3] = (-zfar*znear) / (zfar - znear);
+    m.m[3][2] = 1.0f;
+    return m;
 }
 
 vec4_t mat4_mul_vec4_project(mat4_t mat_proj, vec4_t v) {
-  vec4_t result = mat4_mul_vec4(mat_proj, v);
+    vec4_t result = mat4_mul_vec4(mat_proj, v);
 
-  if (result.w != 0.0f)
-  {
-    result.x /= result.w;
-    result.y /= result.w;
-    result.z /= result.w;
-  }
-  return result;
+    if (result.w != 0.0f)
+    {
+        result.x /= result.w;
+        result.y /= result.w;
+        result.z /= result.w;
+    }
+    return result;
 }
