@@ -22,6 +22,10 @@ void draw_line(int x0, int y0, int x1, int y1, uint32_t color);
 void draw_line3d(int x0, int y0, float z0, int x1, int y1, float z1, uint32_t color);
 void draw_line_dda(int x0, int y0, int x1, int y1, uint32_t color);
 void draw_triangle_lines(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color);
-void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t* colors);
+void draw_triangle(
+  float x0, float y0, float z0, float w0,
+  float x1, float y1, float z1, float w1,
+  float x2, float y2, float z2, float w2,
+  uint32_t* colors);
 void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, texture_t *texture, uint32_t* colors, float area2);
 //void draw_filled_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color);

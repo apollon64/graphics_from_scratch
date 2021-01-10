@@ -393,7 +393,8 @@ void update(void) {
             vec3_normalize(&normal);
             projected_triangle.center = center;
             projected_triangle.normal = normal;
-            normal = vec3_mul(normal, 0.125f);
+            float line_length = 20.f / (.5f*window_width);
+            normal = vec3_mul(normal, line_length);
             array_push(triangles_to_render, projected_triangle);
 
             vec4_t start = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(center) );
@@ -451,9 +452,9 @@ void draw_list_of_triangles(int option)
             uint32_t colors[3] = {color_lit,color_lit,color_lit};
 
             draw_triangle(
-                triangle.points[0].x, triangle.points[0].y, // vertex A
-                triangle.points[1].x, triangle.points[1].y, // vertex B
-                triangle.points[2].x, triangle.points[2].y, // vertex C
+                triangle.points[0].x, triangle.points[0].y, triangle.points[0].z, triangle.points[0].w,// vertex A
+                triangle.points[1].x, triangle.points[1].y, triangle.points[1].z, triangle.points[1].w, // vertex B
+                triangle.points[2].x, triangle.points[2].y, triangle.points[2].z, triangle.points[2].w, // vertex C
                 colors
             );
         }
@@ -553,7 +554,7 @@ void render(void) {
     int ms = SDL_GetTicks();
     draw_list_of_triangles(0);
     int ms1 = SDL_GetTicks();
-    draw_list_of_triangles(1);
+    if (mouse.left)draw_list_of_triangles(1);
     int ms2 = SDL_GetTicks();
     static int numframes=0;
     numframes++;

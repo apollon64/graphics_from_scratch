@@ -367,6 +367,66 @@ static inline vec3_t barycentric_weights_from_coefficents(float x, float y, vec3
     return weights;
 }*/
 
+static void interpolate_color(int x, int y,
+                           vec3_t coeffA,
+                           vec3_t coeffB,
+                           vec3_t coeffC,
+                           float w0, float w1, float w2,
+                           uint32_t* colors)
+{
+    //vec3_t weights = barycentric_weights( (vec2_t){p0.x,p0.y}, (vec2_t){p1.x,p1.y}, (vec2_t){p2.x,p2.y}, (vec2_t){x+.5f,y+.5f});
+    vec3_t weights = barycentric_weights_from_coefficents(x+.5f, y+.5f, coeffA, coeffB, coeffC);
+
+    vec3_t normalized_weights;
+    // This is connected with the triangle area and W somehow...
+    float rlen = 1.0f/(weights.x+weights.y+weights.z);
+    normalized_weights.x = weights.x * rlen;
+    normalized_weights.y = weights.y * rlen;
+    normalized_weights.z = weights.z * rlen;
+    weights = normalized_weights;
+
+    //float u = p0.u * weights.x + p1.u * weights.y + p2.u * weights.z;
+    //float v = p0.v * weights.x + p1.v * weights.y + p2.v * weights.z;
+    // Also interpolate the value of 1/w for the current pixel
+    float one_over_w = w0 * weights.x + w1 * weights.y + w2 * weights.z;
+    float one_over_one_over_w = 1.0f  / one_over_w;
+    //u *= one_over_one_over_w;
+    //v *= one_over_one_over_w;
+
+    //float interpolated_z = p0.z * weights.x + p1.z * weights.y + p2.z * weights.z;
+    //interpolated_z *= one_over_one_over_w;
+
+    // Subtract 1 from W since W goes from 1.0 to 0.0, and we want 0-1
+    //float interpolated_z = 1.0f - (one_over_w*rlen);
+    float interpolated_z = 1.0f - one_over_w;
+
+    const float EPS = 0.0001f;
+    if ( normalized_weights.x < -EPS || normalized_weights.y < -EPS || normalized_weights.z < -EPS)
+    {
+        setpix(x, y, 0xFF00FF32);// BGR
+        //if(normalized_weights.x < -EPS) printf("out side of a by %f.  %f\n", normalized_weights.x, weights.x);
+        //if(normalized_weights.y < -EPS) printf("out side of b by %f.  %f\n", normalized_weights.y, weights.y);
+        //if(normalized_weights.z < -EPS) printf("out side of c by %f.  %f\n", normalized_weights.z, weights.z);
+        float sum = normalized_weights.x + normalized_weights.y + normalized_weights.z;
+        if( sum >= (1+EPS) ) setpix(x, y, packColor(255,255,0) );
+        if( sum <= (0-EPS) ) setpix(x, y, packColor(0,255,255) );
+        return;
+    }
+
+    float buffer_z = z_buffer[(window_width * y) + x];
+    if ( interpolated_z < buffer_z ) {
+        //draw_texel(x, y, u, v, texture);
+        setpix(x,y,colors[0]);
+        z_buffer[(window_width * y) + x] = interpolated_z;
+    }
+    /*uint32_t color = 0xFF000000;
+    U8 red =   (U8)clampf( 255*rweights.x,0,255) & 0xFF;
+    U8 green = (U8)clampf( 255*rweights.y,0,255) & 0xFF;
+    U8 blue =  (U8)clampf( 255*rweights.z,0,255) & 0xFF;
+    color = (255u << 24) | (red<<16) | (green<<8) | blue;
+    setpix(x,y,color);*/
+}
+
 static void interpolate_uv(int x, int y,
                            vec3_t coeffA,
                            vec3_t coeffB,
@@ -441,39 +501,6 @@ float ivec2_midpoint( ivec2 p0, ivec2 p1, ivec2 p2, int *x, int *y)
     return t;
 }
 
-void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t* colors)
-{
-    ivec2 sorted[3] = { {.x=x0,.y=y0}, {.x=x1,.y=y1}, {.x=x2,.y=y2} };
-
-    // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
-    if ( sorted[0].y > sorted[1].y ) {
-        ivec2_swap( &sorted[0], &sorted[1] );
-        uint32_t_swap( &colors[0], &colors[1] );
-    }
-    if ( sorted[1].y > sorted[2].y ) {
-        ivec2_swap( &sorted[1], &sorted[2] );
-        uint32_t_swap( &colors[1], &colors[2] );
-    }
-    if ( sorted[0].y > sorted[1].y ) {
-        ivec2_swap( &sorted[0], &sorted[1] );
-        uint32_t_swap( &colors[0], &colors[1] );
-    }
-
-    uint32_t first_color = colors[0];
-
-    if ( sorted[1].y == sorted[2].y ) {
-        draw_flat_bottom(sorted[0], sorted[1], sorted[2], first_color);
-    } else if (sorted[0].y == sorted[1].y) {
-        draw_flat_top(sorted[0], sorted[1], sorted[2], first_color);
-    } else {
-        ivec2 midpoint;
-        ivec2_midpoint(sorted[0], sorted[1], sorted[2], &midpoint.x, &midpoint.y);
-        draw_flat_bottom(sorted[0], sorted[1], midpoint, first_color);
-        draw_flat_top(sorted[1], midpoint, sorted[2], first_color);
-    }
-}
-
-
 static inline vec3_t makeEdge(float x0,float y0, float x1, float y1)
 {
     float refx = 0.0;
@@ -487,6 +514,135 @@ static inline vec3_t makeEdge(float x0,float y0, float x1, float y1)
         a, b, c
     };
 }
+
+void draw_triangle(
+  float x0, float y0, float z0, float w0,
+  float x1, float y1, float z1, float w1,
+  float x2, float y2, float z2, float w2,
+  uint32_t* colors)
+{
+    // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
+    if ( y0 > y1 ) {
+        float_swap( &x0, &x1 );
+        float_swap( &y0, &y1 );
+        float_swap( &z0, &z1 );
+        float_swap( &w0, &w1 );
+        uint32_t_swap( &colors[0], &colors[1] );
+    }
+    if ( y1 > y2 ) {
+        float_swap( &x1, &x2 );
+        float_swap( &y1, &y2 );
+        float_swap( &z1, &z2 );
+        float_swap( &w1, &w2 );
+        uint32_t_swap( &colors[1], &colors[2] );
+    }
+    if ( y0 > y1 ) {
+        float_swap( &x0, &x1 );
+        float_swap( &y0, &y1 );
+        float_swap( &z0, &z1 );
+        float_swap( &w0, &w1 );
+        uint32_t_swap( &colors[0], &colors[1] );
+    }
+
+    // go back and up half a pixel
+    float fx0 = x0 - .5f;
+    float fy0 = y0 - .5f;
+    float fx1 = x1 - .5f;
+    float fy1 = y1 - .5f;
+    float fx2 = x2 - .5f;
+    float fy2 = y2 - .5f;
+
+    int iy0 = (int)fy0;
+    int iy1 = (int)fy1;
+    int iy2 = (int)fy2;
+    if ( (iy0-iy2) == 0 ) {
+        // No height. return early
+        return;
+    }
+    vec2_t a = vec2_sub( (vec2_t) {
+        x1,y1
+    }, (vec2_t) {
+        x2,y2
+    } );
+    vec2_t b = vec2_sub( (vec2_t) {
+        x0,y0
+    }, (vec2_t) {
+        x2,y2
+    } );
+    float area2 = fabsf((a.x * b.y) - (a.y * b.x));
+    float area_triangle_abc = .5f * fabsf((a.x * b.y) - (a.y * b.x));
+
+    if ( area_triangle_abc <= 1.0f / 256.f)
+    {
+        //printf("tiny area. %f, area2/2=%f\n", area_triangle_abc, .5f * area2);
+        return;
+    }
+
+    // make .w the reciprocal of w
+    w0 = 1.0f / w0;
+    w1 = 1.0f / w1;
+    w2 = 1.0f / w2;
+
+    vec3_t e0 = makeEdge( x0,y0, x1,y1 );
+    vec3_t e1 = makeEdge( x1,y1, x2,y2 );
+    vec3_t e2 = makeEdge( x2,y2, x0,y0 );
+    // Coeffs equal edges, but rotated
+    // Normalize coeffs by dividing by area squared. This gives us perspective.
+    vec3_t coeffA = vec3_mul(e1, 1.f/area2);
+    vec3_t coeffB = vec3_mul(e2, 1.f/area2);
+    vec3_t coeffC = vec3_mul(e0, 1.f/area2);
+
+    ///////////////////////////////////////////////////////
+    // Render the upper part of the triangle (flat-bottom)
+    ///////////////////////////////////////////////////////
+    float inv_slope_1 = 0;
+    float inv_slope_2 = 0;
+
+    int scan_height = iy1 - iy0;
+    if (scan_height) inv_slope_1 = (float)(fx1 - fx0) / fabsf(fy1 - fy0);
+    if (scan_height) inv_slope_2 = (float)(fx2 - fx0) / fabsf(fy2 - fy0);
+
+    if (scan_height) {
+        for (int y = ceilf(fy0); y < ceilf(fy1); y++) {
+            int x_start = ceilf(fx1 + (y - fy1) * inv_slope_1);
+            int x_end = ceilf(fx0 + (y - fy0) * inv_slope_2);
+
+            if (x_end < x_start) {
+                int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
+            }
+
+            for (int x = x_start; x < x_end; x++) {
+                interpolate_color( x, y, coeffA, coeffB, coeffC, w0, w1, w2, colors);
+            }
+        }
+    }
+
+    ///////////////////////////////////////////////////////
+    // Render the bottom part of the triangle (flat-top)
+    ///////////////////////////////////////////////////////
+    inv_slope_1 = 0;
+    inv_slope_2 = 0;
+
+    scan_height = iy2 - iy1;
+    if (scan_height) inv_slope_1 = (float)(fx2 - fx1) / fabsf(fy2 - fy1);
+    if (scan_height) inv_slope_2 = (float)(fx2 - fx0) / fabsf(fy2 - fy0);
+
+    if (scan_height) {
+        for (int y = ceilf(fy1); y < ceilf(fy2); y++) {
+            int x_start = ceilf(fx1 + (y - fy1) * inv_slope_1);
+            int x_end = ceilf(fx0 + (y - fy0) * inv_slope_2);
+
+            if (x_end < x_start) {
+                int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
+            }
+
+            for (int x = x_start; x < x_end; x++) {
+                interpolate_color( x, y, coeffA, coeffB, coeffC, w0, w1, w2, colors);
+            }
+        }
+    }
+}
+
 
 void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, texture_t *texture, uint32_t* colors, float area2)
 {
