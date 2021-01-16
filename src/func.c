@@ -83,6 +83,14 @@ void unpackColor(uint32_t c, float *r, float *g, float *b)
     *r = ( (c >>  0) & 0xFF) / 255.f;
 }
 
+void unpackColorU8(uint32_t c, U8 *r, U8 *g, U8 *b)
+{
+    *b = ( (c >> 16) & 0xFF) ;
+    *g = ( (c >>  8) & 0xFF) ;
+    *r = ( (c >>  0) & 0xFF) ;
+}
+
+
 uint32_t mix_colors(uint32_t a, uint32_t b, float factor)
 {
     if (factor < 0) factor = 0;
@@ -107,6 +115,14 @@ void setpix(int x, int y, uint32_t color)
     if (y<0) return;
     if (y>=window_height) return;
     color_buffer[y*window_width+x] = color;
+}
+uint32_t getpix(int x, int y)
+{
+    if (x<0) return 0;
+    if (x>=window_width) return 0;
+    if (y<0) return 0;
+    if (y>=window_height) return 0;
+    return color_buffer[y*window_width+x];
 }
 
 static inline void setpix_no_bound_check(int x, int y, uint32_t color)
@@ -253,60 +269,6 @@ void draw_triangle_lines(int x0, int y0, int x1, int y1, int x2, int y2, uint32_
     draw_line(x0,y0,x1,y1,color);
     draw_line(x1,y1,x2,y2,color);
     draw_line(x2,y2,x0,y0,color);
-}
-
-void draw_flat_bottom(ivec2 a, ivec2 b, ivec2 c, uint32_t color)
-{
-    int x0 = a.x;
-    int y0 = a.y;
-    int x1 = b.x;
-    int y1 = b.y;
-    int x2 = c.x;
-    int y2 = c.y;
-
-    // Find the two slopes (two triangle legs)
-    int height = y1 - y0;
-    if (height==0) return;
-    float inv_slope_1 = (float)(x1 - x0) / height;
-    float inv_slope_2 = (float)(x2 - x0) / height;
-
-    // Start x_start and x_end from the top vertex (x0,y0)
-    float x_start = x0;
-    float x_end = x0;
-
-    // Loop all the scanlines from top to bottom
-    for (int y = y0; y <= y2; y++) {
-        draw_line(x_start, y, x_end, y, color);
-        x_start += inv_slope_1;
-        x_end += inv_slope_2;
-    }
-}
-
-void draw_flat_top(ivec2 p0, ivec2 p1, ivec2 p2, uint32_t color)
-{
-    int x0 = p0.x;
-    int y0 = p0.y;
-    int x1 = p1.x;
-    //int y1 = p1.y;
-    int x2 = p2.x;
-    int y2 = p2.y;
-
-    int height = y2 - y0;
-    if (height==0) return;
-    // Find the two slopes (two triangle legs)
-    float inv_slope_1 = (float)(x2 - x0) / height;//(y2 - y0);
-    float inv_slope_2 = (float)(x2 - x1) / height;//(y2 - y1);
-
-    // Start x_start and x_end from the bottom vertex (x2,y2)
-    float x_start = x2;
-    float x_end = x2;
-
-    // Loop all the scanlines from bottom to top
-    for (int y = y2; y >= y0; y--) {
-        draw_line(x_start, y, x_end, y, color);
-        x_start -= inv_slope_1;
-        x_end -= inv_slope_2;
-    }
 }
 
 static inline void draw_texel(int x, int y, float u, float v, texture_t* texture)
@@ -552,9 +514,9 @@ void draw_triangle(
     float fx2 = x2 - .5f;
     float fy2 = y2 - .5f;
 
-    int iy0 = (int)fy0;
-    int iy1 = (int)fy1;
-    int iy2 = (int)fy2;
+    int iy0 = ceilf(fy0);
+    int iy1 = ceilf(fy1);
+    int iy2 = ceilf(fy2);
     if ( (iy0-iy2) == 0 ) {
         // No height. return early
         return;
@@ -604,8 +566,10 @@ void draw_triangle(
 
     if (scan_height) {
         for (int y = ceilf(fy0); y < ceilf(fy1); y++) {
-            int x_start = ceilf(fx1 + (y - fy1) * inv_slope_1);
-            int x_end = ceilf(fx0 + (y - fy0) * inv_slope_2);
+            //int x_start = ceilf(fx1 + (y - fy1) * inv_slope_1);
+            //int x_end = ceilf(fx0 + (y - fy0) * inv_slope_2);
+            int x_start = ceilf(fx0 + (y-fy0)*inv_slope_1);
+            int x_end = ceilf(fx0 + (y-fy0)*inv_slope_2);
 
             if (x_end < x_start) {
                 int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
@@ -703,12 +667,10 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
     float fx2 = p2.x - .5f;
     float fy2 = p2.y - .5f;
 
-    //int ix0 = (int)fx0;
-    int iy0 = (int)fy0;
-    //int ix1 = (int)fx1;
-    int iy1 = (int)fy1;
-    //int ix2 = (int)fx2;
-    int iy2 = (int)fy2;
+    int iy0 = ceilf(fy0);
+    int iy1 = ceilf(fy1);
+    int iy2 = ceilf(fy2);
+
     if ( (iy0-iy2) == 0 ) {
         // No height. return early
         return;
@@ -773,13 +735,14 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
     float inv_slope_2 = 0;
 
     int scan_height = iy1 - iy0;
-    if (scan_height) inv_slope_1 = (float)(fx1 - fx0) / fabsf(fy1 - fy0);
-    if (scan_height) inv_slope_2 = (float)(fx2 - fx0) / fabsf(fy2 - fy0);
-
     if (scan_height) {
+        inv_slope_1 = (fx1 - fx0) / (fy1 - fy0);
+        inv_slope_2 = (fx2 - fx0) / (fy2 - fy0);
         for (int y = ceilf(fy0); y < ceilf(fy1); y++) {
             int x_start = ceilf(fx1 + (y - fy1) * inv_slope_1);
             int x_end = ceilf(fx0 + (y - fy0) * inv_slope_2);
+            //int x_start = ceilf(fx0 + (y-fy0)*inv_slope_1);
+            //int x_end = ceilf(fx0 + (y-fy0)*inv_slope_2);
 
             if (x_end < x_start) {
                 int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
@@ -801,10 +764,10 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
     inv_slope_2 = 0;
 
     scan_height = iy2 - iy1;
-    if (scan_height) inv_slope_1 = (float)(fx2 - fx1) / fabsf(fy2 - fy1);
-    if (scan_height) inv_slope_2 = (float)(fx2 - fx0) / fabsf(fy2 - fy0);
 
     if (scan_height) {
+        inv_slope_1 = (fx2 - fx1) / (fy2 - fy1);
+        inv_slope_2 = (fx2 - fx0) / (fy2 - fy0);
         for (int y = ceilf(fy1); y < ceilf(fy2); y++) {
             int x_start = ceilf(fx1 + (y - fy1) * inv_slope_1);
             int x_end = ceilf(fx0 + (y - fy0) * inv_slope_2);

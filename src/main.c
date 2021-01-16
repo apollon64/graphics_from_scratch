@@ -14,6 +14,7 @@
 #include "light.h"
 #include "texture.h"
 #include "draw_triangle_pikuma.h"
+#include "stretchy_buffer.h"
 
 // Review of structs
 typedef struct {
@@ -32,6 +33,10 @@ typedef struct {
 
 bool sort_faces_by_z_enable = true;
 bool display_normals_enable = false;
+bool draw_triangles_torb = true;
+
+//#define DYNAMIC_MEM_EACH_FRAME 1
+
 triangle_t *triangles_to_render = NULL;
 line_t* lines_to_render = NULL;
 
@@ -39,6 +44,9 @@ line_t* lines_to_render = NULL;
 double time = 0;
 bool is_running = false;
 unsigned int previous_frame_time = 0;
+int num_culled = 0;
+int vertex_time_start = 0;
+int vertex_time_end = 0;
 
 typedef struct {
     int x,y,z;
@@ -47,6 +55,8 @@ typedef struct {
 mouse_t mouse;
 
 void setup(const char* mesh_file, const char* texture_file) {
+    //stb__sbgrow(triangles_to_render,1024*8);
+
     time = 0.0;
     mouse = (mouse_t) {
         .x=0,.y=0,.z=0,.left=0,.right=0
@@ -117,7 +127,18 @@ void process_input(void) {
             }
             if (event.key.keysym.sym == SDLK_n)
                 display_normals_enable = true;
+            if (event.key.keysym.sym == SDLK_t)
+            {
+                SDL_Log("enable torb\n");
+                draw_triangles_torb = true;
+            }
+            if (event.key.keysym.sym == SDLK_r)
+            {
+                SDL_Log("disable torb\n");
+                draw_triangles_torb = false;
+            }
             break;
+
         case SDL_KEYUP:
         {
             if (event.key.keysym.sym == SDLK_n)
@@ -225,6 +246,11 @@ static bool isBackface(float ax, float ay, float bx, float by, float cx, float c
     //return area2;
 }
 
+static void snap(float *v)
+{
+  *v = floorf( (*v) * 256.f)/256.f;
+}
+
 void update(void) {
 
     // Wait some time until we reach the target frame time
@@ -238,7 +264,11 @@ void update(void) {
     previous_frame_time = SDL_GetTicks();
 
     // Initialize the array of triangles to render
+#if defined(DYNAMIC_MEM_EACH_FRAME)
     triangles_to_render = NULL;
+#else
+    if (triangles_to_render != NULL) stb__sbn(triangles_to_render)=0;
+#endif
 
     time += 1.0 / (double)FRAME_TARGET_TIME;
     static float mouse_dx = 0;
@@ -253,8 +283,9 @@ void update(void) {
     if (mouse.right) mesh.rotation.y += .01f*mouse_dy;
     //mesh.rotation.z = 0;
 
-    //mesh.rotation.x = .5*time;
-    //mesh.rotation.y = .5*time;
+    //mesh.rotation.x = .25*time;
+    //mesh.rotation.z = .5*time;
+    //mesh.rotation.y = -M_PI;
     //mesh.rotation.z = 0;
 
     mesh.translation.x = 0;
@@ -299,6 +330,8 @@ void update(void) {
     light.position_proj = to_screen_space(light_transformed);
 
 
+    vertex_time_start = SDL_GetTicks();
+    num_culled = 0;
     lines_to_render = NULL;
 
     // Loop all triangle faces of our mesh
@@ -383,8 +416,10 @@ void update(void) {
             // Save the projected triangle in the array of triangles to render
             if (cull_method == CULL_BACKFACE && !front_facing)
             {
+                num_culled++;
                 continue;
             }
+
             vec3_t normal = vec3_cross(
                                 vec3_sub(face_vertices[1],face_vertices[0]),
                                 vec3_sub(face_vertices[2],face_vertices[0])
@@ -395,16 +430,19 @@ void update(void) {
             projected_triangle.normal = normal;
             float line_length = 20.f / (.5f*window_width);
             normal = vec3_mul(normal, line_length);
-            array_push(triangles_to_render, projected_triangle);
+#if defined(DYNAMIC_MEM_EACH_FRAME)
+              array_push(triangles_to_render, projected_triangle);
+#else
+            sb_push(triangles_to_render, projected_triangle);
+#endif
 
             vec4_t start = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(center) );
             vec4_t end = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3( vec3_add(center, normal)) );
             line_t projected_line = {.a = to_screen_space(start), .b = to_screen_space(end) };
-            array_push(lines_to_render, projected_line);
+            //array_push(lines_to_render, projected_line);
         }
-
-
     }
+    vertex_time_end = SDL_GetTicks();
 }
 
 int cmpLess(const void *triangleA, const void *triangleB) {
@@ -419,13 +457,21 @@ int cmpLess(const void *triangleA, const void *triangleB) {
 
 void sort(void)
 {
+#if defined(DYNAMIC_MEM_EACH_FRAME)
     int num_tris = array_length(triangles_to_render);
+#else
+    int num_tris = sb_count(triangles_to_render);
+#endif
     qsort(triangles_to_render, num_tris, sizeof(triangle_t), cmpLess);
 }
 
 void draw_list_of_triangles(int option)
 {
+#if defined(DYNAMIC_MEM_EACH_FRAME)
     int num_tris = array_length(triangles_to_render);
+#else
+    int num_tris = sb_count(triangles_to_render);
+#endif
     uint32_t color = packColor(255,255,255);
     //if (!mouse.left)
     for (int i = 0; i < num_tris; i++) {
@@ -533,7 +579,7 @@ void draw_list_of_triangles(int option)
 }
 
 void render(void) {
-    clear_color_buffer( packColor(64,64,64) );
+    clear_color_buffer( packColor(2554,0,255) );
     clear_z_buffer( 1.0f );
     draw_grid();
 
@@ -552,22 +598,45 @@ void render(void) {
     circle(mouse.x, mouse.y, 10);
 
     int ms = SDL_GetTicks();
-    draw_list_of_triangles(0);
+    if (draw_triangles_torb) draw_list_of_triangles(0);
     int ms1 = SDL_GetTicks();
-    if (mouse.left)draw_list_of_triangles(1);
+    if (!draw_triangles_torb) draw_list_of_triangles(1);
     int ms2 = SDL_GetTicks();
+
+    int vertex_time = vertex_time_end - vertex_time_start;
+#if defined(DYNAMIC_MEM_EACH_FRAME)
+    int num_triangles_to_render = array_length(triangles_to_render);
+#else
+    int num_triangles_to_render = sb_count(triangles_to_render);
+#endif
+
     static int numframes=0;
     numframes++;
     int time1 = ms1 - ms;
     int time2 = ms2 - ms;
     float timediff = 0.f;
     if (time2>0 && time1>0) timediff = time1/(float)time2;
-    if (numframes%100==0) SDL_Log("%d my func: %d, pikuma: %d. ms/ms2=%f", numframes, time1, time2, (double)timediff);
+
+static int frames_per_second = 0;
+static int old_time = 0;
+static int old_frames = 0;
+int time = SDL_GetTicks();
+if (old_time < time)
+{
+  old_time = time + 1000;
+  frames_per_second = numframes - old_frames;
+  old_frames = numframes;
+
+  SDL_Log("vertexTime:%d, my func: %d, pikuma: %d. ms/ms2=%f", vertex_time, time1, time2, (double)timediff);
+  SDL_Log("frame %d, fps:%d, culled:%d, trisRender:%d", numframes, frames_per_second, num_culled, num_triangles_to_render );
+}
+
+
 
     if (display_normals_enable)
     {
         color = 0xFF00FF00;
-        int num_lines = array_length(lines_to_render);
+        int num_lines = 0;//array_length(lines_to_render);
         for (int i = 0; i < num_lines; i++) {
             line_t line = lines_to_render[i];
             draw_line3d(line.a.x, line.a.y, line.a.w, line.b.x, line.b.y, line.b.w, color);
@@ -584,14 +653,20 @@ void render(void) {
     );*/
 
     // Clear the array of triangles to render every frame loop
-    array_free(lines_to_render);
+    //array_free(lines_to_render);
+#if defined(DYNAMIC_MEM_EACH_FRAME)
     array_free(triangles_to_render);
+#endif
 
     render_color_buffer();
 }
 
 void free_resources(void) {
     free_png_texture();
+#if defined(DYNAMIC_MEM_EACH_FRAME)
+#else
+    sb_free(triangles_to_render);
+#endif
     free(color_buffer);
     free(z_buffer);
     free_mesh(&mesh);
