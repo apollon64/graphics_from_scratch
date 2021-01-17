@@ -9,7 +9,8 @@ src/matrix.c \
 src/light.c \
 src/texture.c \
 src/draw_triangle_pikuma.c \
-src/upng.c
+src/upng.c \
+src/camera.c
 
 #CC specifies which compiler we're using
 #CC = g++ or gcc or clang or clang++
