@@ -46,7 +46,7 @@ static void draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
 
 ///////////////////////////////////////////////////////////////////////////////
 // Draw a filled a triangle with a flat bottom
-///////////////////////////////////////////////////////////////////////////////
+/*
 //
 //        (x0,y0)
 //          / \
@@ -56,7 +56,7 @@ static void draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
 //      /         \
 //  (x1,y1)------(x2,y2)
 //
-///////////////////////////////////////////////////////////////////////////////
+*/
 void fill_flat_bottom_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color) {
     // Find the two slopes (two triangle legs)
     float inv_slope_1 = (float)(x1 - x0) / (y1 - y0);
@@ -107,7 +107,7 @@ void fill_flat_top_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint
 ///////////////////////////////////////////////////////////////////////////////
 // Draw a filled triangle with the flat-top/flat-bottom method
 // We split the original triangle in two, half flat-bottom and half flat-top
-///////////////////////////////////////////////////////////////////////////////
+/*
 //
 //          (x0,y0)
 //            / \
@@ -126,7 +126,7 @@ void fill_flat_top_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint
 //                           \
 //                         (x2,y2)
 //
-///////////////////////////////////////////////////////////////////////////////
+*/
 void draw_filled_triangle_p(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color) {
     // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
     if (y0 > y1) {
@@ -172,8 +172,7 @@ void draw_triangle_p(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t co
 
 ///////////////////////////////////////////////////////////////////////////////
 // Return the barycentric weights alpha, beta, and gamma for point p
-///////////////////////////////////////////////////////////////////////////////
-//
+/*
 //          A
 //         /|\
 //        / | \
@@ -182,8 +181,7 @@ void draw_triangle_p(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t co
 //     /  /   \  \
 //    / /       \ \
 //   B-------------C
-//
-///////////////////////////////////////////////////////////////////////////////
+*/
 static vec3_t barycentric_weights(vec2_t a, vec2_t b, vec2_t c, vec2_t p) {
     // Find the vectors between the vertices ABC and point p
     vec2_t ab = vec2_sub(b, a);

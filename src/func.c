@@ -4,9 +4,7 @@
 #include <assert.h>
 #include "display.h"
 #include "vector.h"
-//extern uint32_t *color_buffer;
-//extern int window_width;
-//extern int window_height;
+#include <stdio.h>
 
 typedef struct
 {
