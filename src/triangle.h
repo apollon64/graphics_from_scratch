@@ -23,4 +23,12 @@ typedef struct {
     float area2;
 } triangle_t;
 
+
+
+typedef struct {
+    float x,y;
+    float z,w;
+    float u,v;
+} vertex_texcoord_t;
+
 #endif

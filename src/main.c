@@ -553,11 +553,8 @@ void draw_list_of_triangles(int option)
             else
             {
                 //texture_t texture = {.texels = (uint8_t*)&mesh_texture[0], .width=texture_width, .height=texture_height};
-                draw_textured_triangle_p(
-                    vertices[0].x, vertices[0].y, vertices[0].z, vertices[0].w, vertices[0].u, vertices[0].v,
-                    vertices[1].x, vertices[1].y, vertices[1].z, vertices[1].w,  vertices[1].u, vertices[1].v,
-                    vertices[2].x, vertices[2].y, vertices[2].z, vertices[2].w,  vertices[2].u, vertices[2].v,
-                    mesh_texture
+                draw_triangle_textured_p(
+                    vertices[0], vertices[1], vertices[2], mesh_texture
                 );
             }
         }
@@ -587,7 +584,7 @@ void draw_list_of_triangles(int option)
 }
 
 void render(void) {
-    clear_color_buffer( packColor(2554,0,255) );
+    clear_color_buffer( packColor(255,0,255) );
     clear_z_buffer( 1.0f );
     draw_grid();
 
@@ -603,7 +600,7 @@ void render(void) {
     uint32_t color = 0xFFFFFFFF;
     if (light.position_proj.w > 0.1f)
         circle(light.position_proj.x, light.position_proj.y, 20 - light.position_proj.z);
-    circle(mouse.x, mouse.y, 10);
+    circle(mouse.x, mouse.y, 10 + draw_triangles_torb*10.f);
 
     int ms = SDL_GetTicks();
     if (draw_triangles_torb) draw_list_of_triangles(0);

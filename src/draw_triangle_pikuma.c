@@ -200,7 +200,7 @@ static vec3_t barycentric_weights(vec2_t a, vec2_t b, vec2_t c, vec2_t p) {
     float beta = (ap.x * ac.y - ac.x * ap.y) / area_triangle_abc;
 
     // Weight gamma is easily found since barycentric cooordinates always add up to 1
-    float gamma = 1 - alpha - beta;
+    float gamma = 1.0f - alpha - beta;
 
     vec3_t weights = { alpha, beta, gamma };
     return weights;
@@ -287,12 +287,30 @@ void draw_texel(
     //draw_pixel_depth(x,y,color,depth);
 }
 
-void draw_textured_triangle_p(
-    float fx0, float fy0, float z0, float w0, float u0, float v0,
-    float fx1, float fy1, float z1, float w1, float u1, float v1,
-    float fx2, float fy2, float z2, float w2, float u2, float v2,
-    uint32_t* texture
-) {
+void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, uint32_t *texture) //, uint32_t* colors, float area2)
+{
+    float fx0 = p0.x;
+    float fy0 = p0.y;
+    float z0 = p0.z;
+    float w0 = p0.w;
+    float u0 = p0.u;
+    float v0 = p0.v;
+
+    float fx1 = p1.x;
+    float fy1 = p1.y;
+    float z1 = p1.z;
+    float w1 = p1.w;
+    float u1 = p1.u;
+    float v1 = p1.v;
+
+    float fx2 = p2.x;
+    float fy2 = p2.y;
+    float w2 = p2.w;
+    float z2 = p2.z;
+    float u2 = p2.u;
+    float v2 = p2.v;
+
+
     // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
     if (fy0 > fy1) {
         float_swap(&fy0, &fy1);

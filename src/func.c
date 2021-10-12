@@ -150,8 +150,8 @@ void draw_rect(int x, int y, int width, int height, uint32_t color)
 
 void draw_grid(void)
 {
-    int spacingX = 100;
-    int spacingY = 100;
+    int spacingX = 50;
+    int spacingY = 50;
     for (size_t i = 0; i < window_width; i+=spacingX) {
         for (size_t j = 0; j < window_height; j++) {
             //setcol(127,127,127);

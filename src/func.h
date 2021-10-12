@@ -3,12 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "texture.h"
-
-typedef struct {
-    float x,y;
-    float z,w;
-    float u,v;
-} vertex_texcoord_t;
+#include "triangle.h"
 
 float lerp (float a, float b, float f);
 int clamp(int x, int lo, int hi);
