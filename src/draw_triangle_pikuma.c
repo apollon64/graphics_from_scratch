@@ -3,20 +3,9 @@
 #include "triangle.h"
 #include "draw_triangle_pikuma.h"
 
+
 #include <assert.h>
 #include <math.h>
-
-static void int_swap(int* a, int* b) {
-    int tmp = *a;
-    *a = *b;
-    *b = tmp;
-}
-
-static void float_swap(float* a, float* b) {
-    float tmp = *a;
-    *a = *b;
-    *b = tmp;
-}
 
 static void draw_pixel(int x, int y, uint32_t color) {
     if (x >= 0 && x < window_width && y >= 0 && y < window_height) {
@@ -173,6 +162,7 @@ void draw_triangle_p(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t co
 ///////////////////////////////////////////////////////////////////////////////
 // Return the barycentric weights alpha, beta, and gamma for point p
 /*
+//
 //          A
 //         /|\
 //        / | \
@@ -181,6 +171,7 @@ void draw_triangle_p(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t co
 //     /  /   \  \
 //    / /       \ \
 //   B-------------C
+//
 */
 static vec3_t barycentric_weights(vec2_t a, vec2_t b, vec2_t c, vec2_t p) {
     // Find the vectors between the vertices ABC and point p
@@ -236,12 +227,12 @@ void draw_texel(
     }
     if ( (alpha+beta+gamma) > 1.0f )
     {
-        draw_pixel(x, y, 0xFF0000FF);// BGR
+        draw_pixel(x, y, 0x00550055);// R
         return;
     }
     if ( alpha != alpha)
     {
-        draw_pixel(x, y, 0xFFFFFFFF);// BGR
+        draw_pixel(x, y, 0xFFFFFFFF);// white
         return;
     }
     if ( beta != beta)
@@ -255,17 +246,30 @@ void draw_texel(
         return;
     }
 
+    if ( point_a.w < EPS)
+    {
+        draw_pixel(x, y, 0xFFFFFFFF);// BGR
+        return;
+    }
+
     // Variables to store the interpolated values of U, V, and also 1/w for the current pixel
     float interpolated_u;
     float interpolated_v;
     float interpolated_reciprocal_w;
 
+    float persp_ax = a_uv.u / point_a.w;
+    float persp_ay = a_uv.v / point_a.w;
+    float persp_bx = b_uv.u / point_b.w;
+    float persp_by = b_uv.v / point_b.w;
+    float persp_cx = c_uv.u / point_c.w;
+    float persp_cy = c_uv.v / point_c.w;
+
     // Perform the interpolation of all U/w and V/w values using barycentric weights and a factor of 1/w
-    interpolated_u = (a_uv.u / point_a.w) * alpha + (b_uv.u / point_b.w) * beta + (c_uv.u / point_c.w) * gamma;
-    interpolated_v = (a_uv.v / point_a.w) * alpha + (b_uv.v / point_b.w) * beta + (c_uv.v / point_c.w) * gamma;
+    interpolated_u = persp_ax * alpha + persp_bx * beta + persp_cx * gamma;
+    interpolated_v = persp_ay * alpha + persp_by * beta + persp_cy * gamma;
 
     // Also interpolate the value of 1/w for the current pixel
-    interpolated_reciprocal_w = (1 / point_a.w) * alpha + (1 / point_b.w) * beta + (1 / point_c.w) * gamma;
+    interpolated_reciprocal_w = (1.0f / point_a.w) * alpha + (1.0f / point_b.w) * beta + (1.0f / point_c.w) * gamma;
 
     // Now we can divide back both interpolated values by 1/w
     interpolated_u /= interpolated_reciprocal_w;
@@ -277,7 +281,7 @@ void draw_texel(
     //tex_x %= texture_width;
     //tex_y %= texture_height;
     bool oob = ((texture_width * tex_y) + tex_x) >= (texture_width*texture_height) ;
-    uint32_t color = oob ? 0xFF0000FF : texture[(texture_width * tex_y) + tex_x];
+    uint32_t color = oob ? 0xFF550055 : texture[(texture_width * tex_y) + tex_x];
     /*U8 red = (U8)(alpha*255.f) & 0xFF;
     U8 green = (U8)(beta*255.f) & 0xFF;
     U8 blue = (U8)(gamma*255.f) & 0xFF;
@@ -309,7 +313,6 @@ void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex
     float z2 = p2.z;
     float u2 = p2.u;
     float v2 = p2.v;
-
 
     // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
     if (fy0 > fy1) {

@@ -14,8 +14,11 @@
 #include "light.h"
 #include "texture.h"
 #include "draw_triangle_pikuma.h"
+#include "draw_triangle_torb.h"
 #include "stretchy_buffer.h"
 #include "camera.h"
+#include "clip.h"
+#include "render_font/software_bitmapfont.h"
 
 // Review of structs
 
@@ -49,6 +52,11 @@ typedef struct {
 } mouse_t;
 mouse_t mouse;
 
+plane_t frustum_planes[6];
+float z_near = 0.1f;
+float z_far = 100.0f;
+float fov_y = PI / 3.0f;
+
 void setup(const char* mesh_file, const char* texture_file) {
     //stb__sbgrow(triangles_to_render,1024*8);
 
@@ -61,9 +69,11 @@ void setup(const char* mesh_file, const char* texture_file) {
     render_method = RENDER_WIRE;
     cull_method = CULL_BACKFACE;
 
-    float aspect_ratio = window_height / (float) window_width;
-    float fov_angle = PI / 3.0f;
-    proj_matrix = mat4_make_perspective(fov_angle, aspect_ratio, 0.1f, 100.0f);
+    float aspect_x = window_width / (float) window_height;
+    float aspect_y = window_height / (float) window_width;
+    proj_matrix = mat4_make_perspective(fov_y, aspect_y, z_near, z_far);
+    float fov_x = atanf(tanf(fov_y/2.f)*aspect_x) * 2.f;
+    init_frustum_planes(fov_x, fov_y, z_near, z_far, frustum_planes);
 
     //load_cube_mesh_data();
     load_obj_file_data(mesh_file);
@@ -241,13 +251,49 @@ static bool isBackface(float ax, float ay, float bx, float by, float cx, float c
     //return area2;
 }
 
-static void snap(float *v)
+/*static void snap(float *v)
 {
   *v = floorf( (*v) * 256.f)/256.f;
+}*/
+
+static triangle_t assembleTriangle(vec4_t* transformed_vertices, uint32_t face_colors[3], vec2_t face_texcoords[3])
+{
+  triangle_t projected_triangle;
+  for (int j = 0; j < 3; j++) {
+      // Scale and translate the projected points to the middle of the screen
+      vec4_t projected_point = to_screen_space(transformed_vertices[j]);
+      projected_triangle.points[j].x = projected_point.x;
+      projected_triangle.points[j].y = projected_point.y;
+      projected_triangle.points[j].z = projected_point.z;
+      projected_triangle.points[j].w = projected_point.w;
+      projected_triangle.z = projected_point.z;
+      projected_triangle.colors[j] = face_colors[j];
+      projected_triangle.texcoords[j] = face_texcoords[j];
+  }
+  return projected_triangle;
+}
+
+static void addLineToRender(vec3_t normal, vec3_t center, mat4_t mvp_matrix)
+{
+  float line_length = 20.f / (.5f*window_width);
+  normal = vec3_mul(normal, line_length);
+  vec4_t start = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(center) );
+  vec4_t end = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3( vec3_add(center, normal)) );
+  line_t projected_line = {.a = to_screen_space(start), .b = to_screen_space(end) };
+  array_push(lines_to_render, projected_line);
+}
+
+static void addTriangleToRender(triangle_t projected_triangle)
+{
+  // Save the projected triangle in the array of triangles to render
+#if defined(DYNAMIC_MEM_EACH_FRAME)
+    array_push(triangles_to_render, projected_triangle);
+#else
+  sb_push(triangles_to_render, projected_triangle);
+#endif
 }
 
 void update(void) {
-
     // Wait some time until we reach the target frame time
     int time_to_wait =
         (int)(previous_frame_time + FRAME_TARGET_TIME) - SDL_GetTicks();
@@ -380,19 +426,14 @@ void update(void) {
             transformed_vertices[j] = transformed_vertex;
         }
 
-        triangle_t projected_triangle;
-        projected_triangle.z = transformed_center.z;
-        for (int j = 0; j < 3; j++) {
-            // Scale and translate the projected points to the middle of the screen
-            vec4_t projected_point = to_screen_space(transformed_vertices[j]);
-            projected_triangle.points[j].x = projected_point.x;
-            projected_triangle.points[j].y = projected_point.y;
-            projected_triangle.points[j].z = projected_point.z;
-            projected_triangle.points[j].w = projected_point.w;
-            projected_triangle.z = projected_point.z;
-            projected_triangle.colors[j] = face_colors[j];
-            projected_triangle.texcoords[j] = face_texcoords[j];
-        }
+        triangle_t projected_triangle = assembleTriangle(transformed_vertices, face_colors, face_texcoords);
+        vec3_t face_normal = vec3_cross(
+                            vec3_sub(face_vertices[1],face_vertices[0]),
+                            vec3_sub(face_vertices[2],face_vertices[0])
+                        );
+        vec3_normalize(&face_normal);
+        projected_triangle.center = center;
+        projected_triangle.normal = face_normal;
 
         // Check backface culling
         vec3_t vector_a = vec3_from_vec4(transformed_vertices[0]); /*   A   */
@@ -402,13 +443,13 @@ void update(void) {
         // Get the vector subtraction of B-A and C-A
         vec3_t vector_ab = vec3_sub(vector_b, vector_a);
         vec3_t vector_ac = vec3_sub(vector_c, vector_a);
-        vec3_t normal = vec3_cross(vector_ab, vector_ac);
-        projected_triangle.area2 = vec3_dot(normal, normal);
+        vec3_t transformed_normal = vec3_cross(vector_ab, vector_ac);
+        projected_triangle.area2 = vec3_dot(transformed_normal, transformed_normal);
 
         // Find the vector between a point in the triangle and camera origin
         vec3_t origin = {0.f, 0.f, 0.f};
         vec3_t camera_ray = vec3_sub(origin, vector_a);
-        float rayDotNormal = vec3_dot(camera_ray, normal);
+        float rayDotNormal = vec3_dot(camera_ray, transformed_normal);
 
         // Bypass the triangles looking away from camera
         bool backfacing = isBackface(
@@ -418,37 +459,51 @@ void update(void) {
                           );
         bool front_facing = rayDotNormal > 0.0f;
         front_facing = !backfacing;
-
-        //if (cull_method == CULL_BACKFACE && front_facing)
+        if (cull_method == CULL_BACKFACE && !front_facing)
         {
-            // Save the projected triangle in the array of triangles to render
-            if (cull_method == CULL_BACKFACE && !front_facing)
-            {
-                num_culled++;
-                continue;
-            }
-
-            vec3_t normal = vec3_cross(
-                                vec3_sub(face_vertices[1],face_vertices[0]),
-                                vec3_sub(face_vertices[2],face_vertices[0])
-                            );
-
-            vec3_normalize(&normal);
-            projected_triangle.center = center;
-            projected_triangle.normal = normal;
-            float line_length = 20.f / (.5f*window_width);
-            normal = vec3_mul(normal, line_length);
-#if defined(DYNAMIC_MEM_EACH_FRAME)
-              array_push(triangles_to_render, projected_triangle);
-#else
-            sb_push(triangles_to_render, projected_triangle);
-#endif
-
-            vec4_t start = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(center) );
-            vec4_t end = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3( vec3_add(center, normal)) );
-            line_t projected_line = {.a = to_screen_space(start), .b = to_screen_space(end) };
-            //array_push(lines_to_render, projected_line);
+            num_culled++;
+            continue;
         }
+
+          polygon_t polygon = create_polygon_from_triangle(
+              vec3_from_vec4(transformed_vertices[0]),
+              vec3_from_vec4(transformed_vertices[1]),
+              vec3_from_vec4(transformed_vertices[2])
+          );
+
+          //clip_polygon(&polygon, frustum_planes);
+          if (polygon.num_vertices < 3)
+          {
+              num_culled++;
+              continue;
+          }
+          addTriangleToRender(projected_triangle);
+          /*
+          int tris = polygon.num_vertices - 2;
+            for(int tri=0; tri<tris; tri++)
+            {
+              vec3_t v0 = polygon.vertices[0];
+              vec3_t v1 = polygon.vertices[tri+1];
+              vec3_t v2 = polygon.vertices[tri+2];
+              // want to use interplation factor for all attributes!
+              vec4_t transformed_and_clipped_vertices[3];
+              transformed_and_clipped_vertices[0] = vec4_from_vec3(v0);
+              transformed_and_clipped_vertices[1] = vec4_from_vec3(v1);
+              transformed_and_clipped_vertices[2] = vec4_from_vec3(v2);
+
+              for (int j=0; j<3; j++)
+              {
+                vec4_t projected_point = to_screen_space(transformed_and_clipped_vertices[j]);
+                projected_triangle.points[j].x = projected_point.x;
+                projected_triangle.points[j].y = projected_point.y;
+                projected_triangle.points[j].z = projected_point.z;
+                projected_triangle.points[j].w = projected_point.w;
+                projected_triangle.z = projected_point.z;
+              }
+
+              addTriangleToRender(projected_triangle);
+            }*/
+
     }
     vertex_time_end = SDL_GetTicks();
 }
@@ -553,9 +608,7 @@ void draw_list_of_triangles(int option)
             else
             {
                 //texture_t texture = {.texels = (uint8_t*)&mesh_texture[0], .width=texture_width, .height=texture_height};
-                draw_triangle_textured_p(
-                    vertices[0], vertices[1], vertices[2], mesh_texture
-                );
+                draw_triangle_textured_p(vertices[0], vertices[1], vertices[2], mesh_texture);
             }
         }
 
@@ -632,8 +685,6 @@ if (old_time < time)
   frames_per_second = numframes - old_frames;
   old_frames = numframes;
 
-  SDL_Log("vertexTime:%d, my func: %d, pikuma: %d. ms/ms2=%f", vertex_time, time1, time2, (double)timediff);
-  SDL_Log("frame %d, fps:%d, culled:%d, trisRender:%d", numframes, frames_per_second, num_culled, num_triangles_to_render );
 }
 
 
@@ -663,6 +714,10 @@ if (old_time < time)
     array_free(triangles_to_render);
 #endif
 
+    moveto(10,10);
+    gprintf("vertexTime:%d, my func: %d, pikuma: %d. ms/ms2=%f\n", vertex_time, time1, time2, (double)timediff);
+    gprintf("frame %d, fps:%d, culled:%d, trisRender:%d", numframes, frames_per_second, num_culled, num_triangles_to_render );
+
     render_color_buffer();
 }
 
@@ -690,7 +745,7 @@ int EndsWith(const char *str, const char *suffix)
 
 int main(int argc, char *argv[])
 {
-    SDL_Log("Hello courses.pikuma.com\n");
+    SDL_Log("Hello courses.pikuma.com !!\n");
     const char* mesh_file = "./assets/cube.obj";
     const char* texture_file = "./assets/cube.png";
     for(int i=0; i<argc; i++)

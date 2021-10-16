@@ -7,14 +7,14 @@ CppApplication {
         "src/array.h",
         "src/camera.c",
         "src/camera.h",
-        //"src/clip.c",
-        //"src/clip.h",
+        "src/clip.c",
+        "src/clip.h",
         "src/display.c",
         "src/display.h",
         "src/draw_triangle_pikuma.c",
         "src/draw_triangle_pikuma.h",
-        //"src/draw_triangle_torb.c",
-        //"src/draw_triangle_torb.h",
+        "src/draw_triangle_torb.c",
+        "src/draw_triangle_torb.h",
         "src/func.c",
         "src/func.h",
         "src/light.c",
@@ -34,6 +34,8 @@ CppApplication {
         "src/upng.h",
         "src/vector.c",
         "src/vector.h",
+        "src/render_font/software_bitmapfont.h",
+        "src/render_font/software_bitmapfont.c",
 
     ]
     cpp.cLanguageVersion: "c99"
@@ -43,6 +45,8 @@ CppApplication {
         //"-fsanitize-undefined-trap-on-error", "-fsanitize=undefined", "-fsanitize=bounds"
         //-fsanitize=memory"
     ]
+
+
     cpp.includePaths: ["C:/dev/SDL2-2.0.14/x86_64-w64-mingw32/include/"]
     cpp.libraryPaths: ["C:/dev/SDL2-2.0.14/x86_64-w64-mingw32/lib/"]
     cpp.staticLibraries: ["m", "mingw32", "SDL2main", "SDL2", "m"] //pthread
