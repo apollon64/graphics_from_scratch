@@ -109,42 +109,42 @@ uint32_t mix_colors(uint32_t a, uint32_t b, float factor)
 void setpix(int x, int y, uint32_t color)
 {
     if (x<0) return;
-    if (x>=window_width) return;
+    if (x>=get_window_width()) return;
     if (y<0) return;
-    if (y>=window_height) return;
-    color_buffer[y*window_width+x] = color;
+    if (y>=get_window_height()) return;
+    color_buffer[y*get_window_width()+x] = color;
 }
 inline void setpix_no_bound_check(int x, int y, uint32_t color)
 {
-    color_buffer[y*window_width+x] = color;
+    color_buffer[y*get_window_width()+x] = color;
 }
 
 uint32_t getpix(int x, int y)
 {
     if (x<0) return 0;
-    if (x>=window_width) return 0;
+    if (x>=get_window_width()) return 0;
     if (y<0) return 0;
-    if (y>=window_height) return 0;
-    return color_buffer[y*window_width+x];
+    if (y>=get_window_height()) return 0;
+    return color_buffer[y*get_window_width()+x];
 }
 
 void draw_rect(int x, int y, int width, int height, uint32_t color)
 {
     if (width < 1 || height < 1) return;
-    if (x >= window_width || y >= window_height) return;
+    if (x >= get_window_width() || y >= get_window_height()) return;
     int endx = x+width;
     int endy = y+height;
     if (endx <= 0 || endy <= 0) return;
-    int startx = clamp(x, 0, window_width-1);
-    int starty = clamp(y, 0, window_height-1);
-    endx = clamp(endx, 0, window_width-1);
-    endy = clamp(endy, 0, window_height-1);
+    int startx = clamp(x, 0, get_window_width()-1);
+    int starty = clamp(y, 0, get_window_height()-1);
+    endx = clamp(endx, 0, get_window_width()-1);
+    endy = clamp(endy, 0, get_window_height()-1);
     for(int cx=startx; cx<endx; cx++)
         for(int cy=starty; cy<endy; cy++)
         {
-            //if (cx<0 || cy <0 || cx>=window_width || cy >= window_height)
+            //if (cx<0 || cy <0 || cx>=get_window_width() || cy >= get_window_height())
             //{ SDL_Log("draw_rect oob"); abort(); }
-            color_buffer[cy*window_width+cx] = color;
+            color_buffer[cy*get_window_width()+cx] = color;
         }
 }
 
@@ -152,15 +152,15 @@ void draw_grid(void)
 {
     int spacingX = 50;
     int spacingY = 50;
-    for (size_t i = 0; i < window_width; i+=spacingX) {
-        for (size_t j = 0; j < window_height; j++) {
+    for (size_t i = 0; i < get_window_width(); i+=spacingX) {
+        for (size_t j = 0; j < get_window_height(); j++) {
             //setcol(127,127,127);
             setpix(i,j, packColor(75,75,75) );
         }
     }
 
-    for (int y = 0; y < window_height; y+=spacingY) {
-        for (int x = 0; x < window_width; x++) {
+    for (int y = 0; y < get_window_height(); y+=spacingY) {
+        for (int x = 0; x < get_window_width(); x++) {
             //setcol(127,127,127);
             setpix(x,y, packColor(96,96,96) );
         }
@@ -233,10 +233,10 @@ void draw_line3d(int x0, int y0, float w0, int x1, int y1, float w1, uint32_t co
       //float one_over_w = lerp(1.f/z0, 1.f/z1, i/(float)side_len );
       float one_over_w = cw;
       float interpolated_z = 1.0f - one_over_w;
-      if (interpolated_z < z_buffer[y*window_height+x])
+      if (interpolated_z < z_buffer[y*get_window_height()+x])
       {
          setpix( x, y, color);
-         z_buffer[y*window_height+x] = interpolated_z;
+         z_buffer[y*get_window_height()+x] = interpolated_z;
       }
       cx += x_inc;
       cy += y_inc;

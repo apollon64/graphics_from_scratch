@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -11,6 +12,7 @@
 #include "mesh.h"
 #include "array.h"
 #include "matrix.h"
+#include "misc.h" // string stuff
 #include "light.h"
 #include "texture.h"
 #include "draw_triangle_pikuma.h"
@@ -22,8 +24,15 @@
 
 // Review of structs
 
-mat4_t proj_matrix;
 mat4_t normal_matrix;
+
+
+struct uniforms_t
+{
+    mat4_t model_matrix;
+    mat4_t view_matrix;
+    mat4_t projection_matrix;
+} uniforms;
 
 typedef struct {
     vec4_t a,b;
@@ -38,42 +47,52 @@ bool draw_triangles_torb = true;
 triangle_t *triangles_to_render = NULL;
 line_t* lines_to_render = NULL;
 
-
-double time = 0;
 bool is_running = false;
 unsigned int previous_frame_time = 0;
-int num_culled = 0;
+int num_culled;
+int num_cull_backface;
+int num_cull_zero_area;
+int num_not_culled;
+int num_cull_near;
+int num_cull_far;
+int num_cull_xy;
+int num_cull_few;
+int num_cull_many;
+
 int vertex_time_start = 0;
 int vertex_time_end = 0;
 
 typedef struct {
     int x,y,z;
+    float dx;
+    float dy;
+    float ox;
+    float oy;
     bool left,right,middle;
 } mouse_t;
 mouse_t mouse;
 
-plane_t frustum_planes[6];
-float z_near = 0.1f;
+float z_near = 0.01f;
 float z_far = 100.0f;
-float fov_y = PI / 3.0f;
 
 void setup(const char* mesh_file, const char* texture_file) {
     //stb__sbgrow(triangles_to_render,1024*8);
 
-    time = 0.0;
-    mouse = (mouse_t) {
-        .x=0,.y=0,.z=0,.left=0,.right=0
-    };
+    memset(&mouse,0,sizeof(mouse));
 
     // Initialize render mode and triangle culling method
     render_method = RENDER_WIRE;
     cull_method = CULL_BACKFACE;
 
-    float aspect_x = window_width / (float) window_height;
-    float aspect_y = window_height / (float) window_width;
-    proj_matrix = mat4_make_perspective(fov_y, aspect_y, z_near, z_far);
-    float fov_x = atanf(tanf(fov_y/2.f)*aspect_x) * 2.f;
-    init_frustum_planes(fov_x, fov_y, z_near, z_far, frustum_planes);
+    float aspect_y = (float)get_window_height() / (float)get_window_width();
+    float aspect_x = (float)get_window_width() / (float)get_window_height();
+    float fov_y = PI / 3.0; // the same as 180/3, or 60deg
+    float fov_x = atan(tan(fov_y / 2.f) * aspect_x) * 2.f;
+
+
+    uniforms.projection_matrix = mat4_make_perspective(fov_y, aspect_y, z_near, z_far);
+    camera.position = (vec3_t){0,0,0};
+    init_frustum_planes(fov_x, fov_y, z_near, z_far);//, frustum_planes);
 
     //load_cube_mesh_data();
     load_obj_file_data(mesh_file);
@@ -110,6 +129,25 @@ void process_input(void) {
                 render_method = RENDER_TEXTURED;
             if (event.key.keysym.sym == SDLK_6)
                 render_method = RENDER_TEXTURED_WIRE;
+
+
+            if (event.key.keysym.sym == SDLK_UP)
+                mesh.translation.y += 0.5f;
+            if (event.key.keysym.sym == SDLK_DOWN)
+                mesh.translation.y -= 0.5f;
+            if (event.key.keysym.sym == SDLK_LEFT)
+                mesh.translation.x += 0.5f;
+            if (event.key.keysym.sym == SDLK_RIGHT)
+                mesh.translation.x -= 0.5f;
+
+            if (event.key.keysym.sym == SDLK_PAGEUP)
+                camera.position.z += 0.5f;
+            if (event.key.keysym.sym == SDLK_PAGEDOWN)
+                camera.position.z -= 0.5f;
+
+
+
+
             if (event.key.keysym.sym == SDLK_c)
             {
                 cull_method = CULL_BACKFACE;
@@ -132,6 +170,7 @@ void process_input(void) {
             }
             if (event.key.keysym.sym == SDLK_n)
                 display_normals_enable = true;
+
             if (event.key.keysym.sym == SDLK_t)
             {
                 SDL_Log("enable torb\n");
@@ -217,18 +256,24 @@ void process_input(void) {
         break;
         }
     }// while
+
+
+    mouse.dx = mouse.x - mouse.ox;
+    mouse.dy = mouse.y - mouse.oy;
+    mouse.ox = mouse.x;
+    mouse.oy = mouse.y;
 }
 
 vec4_t to_screen_space(vec4_t v)
 {
-    v.x *= (window_width / 2.0f);
-    v.y *= (window_height / 2.0f);
+    v.x *= (get_window_width() / 2.0f);
+    v.y *= (get_window_height() / 2.0f);
 
-    // Invert screen y coordinate since our display goes from 0 to window_height
+    // Invert screen y coordinate since our display goes from 0 to get_window_height()
     v.y *= -1;
 
-    v.x += (window_width / 2.0f);
-    v.y += (window_height / 2.0f);
+    v.x += (get_window_width() / 2.0f);
+    v.y += (get_window_height() / 2.0f);
 
     return v;
 }
@@ -256,26 +301,10 @@ static bool isBackface(float ax, float ay, float bx, float by, float cx, float c
   *v = floorf( (*v) * 256.f)/256.f;
 }*/
 
-static triangle_t assembleTriangle(vec4_t* transformed_vertices, uint32_t face_colors[3], vec2_t face_texcoords[3])
-{
-  triangle_t projected_triangle;
-  for (int j = 0; j < 3; j++) {
-      // Scale and translate the projected points to the middle of the screen
-      vec4_t projected_point = to_screen_space(transformed_vertices[j]);
-      projected_triangle.points[j].x = projected_point.x;
-      projected_triangle.points[j].y = projected_point.y;
-      projected_triangle.points[j].z = projected_point.z;
-      projected_triangle.points[j].w = projected_point.w;
-      projected_triangle.z = projected_point.z;
-      projected_triangle.colors[j] = face_colors[j];
-      projected_triangle.texcoords[j] = face_texcoords[j];
-  }
-  return projected_triangle;
-}
 
 static void addLineToRender(vec3_t normal, vec3_t center, mat4_t mvp_matrix)
 {
-  float line_length = 20.f / (.5f*window_width);
+  float line_length = 20.f / (.5f*get_window_width());
   normal = vec3_mul(normal, line_length);
   vec4_t start = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(center) );
   vec4_t end = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3( vec3_add(center, normal)) );
@@ -295,10 +324,11 @@ static void addTriangleToRender(triangle_t projected_triangle)
 
 void update(void) {
     // Wait some time until we reach the target frame time
+    Uint32 sdl_time = SDL_GetTicks();
     int time_to_wait =
-        (int)(previous_frame_time + FRAME_TARGET_TIME) - SDL_GetTicks();
+        (int)(previous_frame_time + FRAME_TARGET_TIME) - sdl_time;
 
-    time_to_wait = FRAME_TARGET_TIME - (SDL_GetTicks() - (int)previous_frame_time);
+    time_to_wait = FRAME_TARGET_TIME - (sdl_time - (int)previous_frame_time);
 
     // Only delay if we are too fast
     if (time_to_wait > 0 && time_to_wait <= FRAME_TARGET_TIME) SDL_Delay(time_to_wait);
@@ -308,20 +338,12 @@ void update(void) {
 #if defined(DYNAMIC_MEM_EACH_FRAME)
     triangles_to_render = NULL;
 #else
+    // Set Stretchy Buffer size (not capacity) to zero
     if (triangles_to_render != NULL) stb__sbn(triangles_to_render)=0;
 #endif
 
-    time += 1.0 / (double)FRAME_TARGET_TIME;
-    static float mouse_dx = 0;
-    static float mouse_dy = 0;
-    static float mouse_ox = 0;
-    static float mouse_oy = 0;
-    mouse_dx = mouse.x - mouse_ox;
-    mouse_dy = mouse.y - mouse_oy;
-    mouse_ox = mouse.x;
-    mouse_oy = mouse.y;
-    if (mouse.right) mesh.rotation.x += .01f*mouse_dx;
-    if (mouse.right) mesh.rotation.y += .01f*mouse_dy;
+    if (mouse.right) mesh.rotation.x += .01f*mouse.dx;
+    if (mouse.right) mesh.rotation.y += .01f*mouse.dy;
     //mesh.rotation.z = 0;
 
     //mesh.rotation.x = .25*time;
@@ -329,19 +351,22 @@ void update(void) {
     //mesh.rotation.y = -M_PI;
     //mesh.rotation.z = 0;
 
-    mesh.translation.x = 0;
-    mesh.translation.y = 0;
-    //mesh.translation.z = -40.f + 80.f * mouse.y / (float)window_height;
+    //mesh.translation.x = 0;
+    //mesh.translation.y = 0;
     mesh.translation.z = 3.5f + mouse.z;
 
-    // Change the camera position per animation frame
-    //camera.position.x += 0.008;
-    //camera.position.y += 0.008;
 
-    // Create the view matrix looking at a hardcoded target point
-    vec3_t target = { 0, 0, 4.0 };
+    // Initialize the target looking at the positive z-axis
+    vec3_t target = { 0, 0, 1 };
+    mat4_t camera_yaw_rotation = mat4_make_rotation_y(0);//camera.yaw);
+    camera.direction = vec3_from_vec4(mat4_mul_vec4(camera_yaw_rotation, vec4_from_vec3(target)));
+
+    // Offset the camera position in the direction where the camera is pointing at
+    target = vec3_add(camera.position, camera.direction);
     vec3_t up_direction = { 0, 1, 0 };
-    mat4_t view_matrix = mat4_look_at(camera.position, target, up_direction);
+
+    // Create the view matrix
+    uniforms.view_matrix = mat4_look_at(camera.position, target, up_direction);
 
     // Create scale, rotation, and translation matrices that will be used to multiply the mesh vertices
     mat4_t scale_matrix = mat4_make_scale(mesh.scale.x, mesh.scale.y, mesh.scale.z);
@@ -349,15 +374,21 @@ void update(void) {
     mat4_t rotation_matrix_x = mat4_make_rotation_x(mesh.rotation.x);
     mat4_t rotation_matrix_y = mat4_make_rotation_y(mesh.rotation.y);
     mat4_t rotation_matrix_z = mat4_make_rotation_z(mesh.rotation.z);
+
+    // Create a World Matrix combining scale, rotation, and translation matrices
     mat4_t world_matrix = mat4_identity();
-    // Order matters: scale, rotate, translate. [T][R][S]*v
+
+    // Order matters: First scale, then rotate, then translate. [T]*[R]*[S]*v
     world_matrix = mat4_mul_mat4(scale_matrix, world_matrix);
-    world_matrix = mat4_mul_mat4(rotation_matrix_x, world_matrix);
-    world_matrix = mat4_mul_mat4(rotation_matrix_y, world_matrix);
     world_matrix = mat4_mul_mat4(rotation_matrix_z, world_matrix);
-    normal_matrix = world_matrix;
+    world_matrix = mat4_mul_mat4(rotation_matrix_y, world_matrix);
+    world_matrix = mat4_mul_mat4(rotation_matrix_x, world_matrix);
     world_matrix = mat4_mul_mat4(translation_matrix, world_matrix);
-    const mat4_t mvp_matrix = mat4_mul_mat4(proj_matrix, world_matrix);
+
+
+    normal_matrix = world_matrix;
+    uniforms.model_matrix = world_matrix;
+
 
     light.position.x = 0;
     light.position.y = 0;
@@ -375,16 +406,34 @@ void update(void) {
 
     light.position = vec3_from_vec4( mat4_mul_vec4(light_world_matrix, light.position_proj) );
 
-    const mat4_t light_mvp = mat4_mul_mat4(proj_matrix, light_world_matrix);
+    const mat4_t light_mvp = mat4_mul_mat4(uniforms.projection_matrix, light_world_matrix);
     vec4_t light_transformed = mat4_mul_vec4_project(light_mvp, light.position_proj);
     light.position_proj = to_screen_space(light_transformed);
+}
 
+void vertexShading(mat4_t model_matrix, mat4_t view_matrix, mat4_t projection_matrix)
+{
+    // mvp = M V P
+
+    mat4_t mvp = mat4_mul_mat4(projection_matrix, view_matrix);
+    mvp = mat4_mul_mat4(mvp,model_matrix);
 
     vertex_time_start = SDL_GetTicks();
     num_culled = 0;
+    num_cull_backface = 0;
+    num_cull_zero_area = 0;
+    num_cull_near = 0;
+    num_cull_far = 0;
+    num_not_culled = 0;
+    num_cull_xy = 0;
+    num_cull_few = 0;
+    num_cull_many = 0;
     lines_to_render = NULL;
 
     // Loop all triangle faces of our mesh
+    // It would be more efficient to extract all verts, texcoords, normals from mesh on startup to a mesh VertexBuffer
+    // and then transform all vertices in a tight loop
+    // and then draw them using an index buffer
     int n_faces = array_length(mesh.faces);
     for (int i = 0; i < n_faces; i++) {
         face_t mesh_face = mesh.faces[i];
@@ -410,14 +459,14 @@ void update(void) {
         center = vec3_add(center, face_vertices[2]);
         center = vec3_mul(center, 1.0f / 3.0f);
 
-        // Use a matrix to scale our original vertex
-        vec4_t transformed_center = mat4_mul_vec4(mvp_matrix, vec4_from_vec3(center) );
 
         vec4_t transformed_vertices[3];
         // Loop all three vertices of this current face and apply transformations
         for (int j = 0; j < 3; j++) {
-            //vec4_t transformed_vertex = mat4_mul_vec4(world_matrix, vec4_from_vec3(face_vertices[j]) );
-            vec4_t transformed_vertex = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(face_vertices[j]) );
+            // Transform face by concatenated MVP matrix, then divide by W (projection)
+            //vec4_t transformed_vertex = mat4_mul_vec4_project(mvp, vec4_from_vec3(face_vertices[j]) );
+            // Multiply the world matrix by the original vector
+            vec4_t transformed_vertex = mat4_mul_vec4(model_matrix,  vec4_from_vec3(face_vertices[j]));
 
             // Multiply the view matrix by the vector to transform the scene to camera space
             transformed_vertex = mat4_mul_vec4(view_matrix, transformed_vertex);
@@ -426,15 +475,48 @@ void update(void) {
             transformed_vertices[j] = transformed_vertex;
         }
 
-        triangle_t projected_triangle = assembleTriangle(transformed_vertices, face_colors, face_texcoords);
-        vec3_t face_normal = vec3_cross(
-                            vec3_sub(face_vertices[1],face_vertices[0]),
-                            vec3_sub(face_vertices[2],face_vertices[0])
-                        );
-        vec3_normalize(&face_normal);
-        projected_triangle.center = center;
-        projected_triangle.normal = face_normal;
+        // Save world space triangle
+        polygon_t polygon = create_polygon_from_triangle(
+            vec3_from_vec4(transformed_vertices[0]),
+            vec3_from_vec4(transformed_vertices[1]),
+            vec3_from_vec4(transformed_vertices[2]),
+            face_texcoords[0],
+            face_texcoords[1],
+            face_texcoords[2]
+        );
 
+        int num_zero_w = 0;
+        int num_out_near = 0;
+        int num_out_far = 0;
+
+        for (int j = 0; j < 3; j++) {
+            num_zero_w += transformed_vertices[j].w <= 0.f;
+            num_out_near += transformed_vertices[j].z < z_near;
+            num_out_far += transformed_vertices[j].z > z_far;
+        }
+
+        if (num_zero_w == 3)
+        {
+            num_cull_zero_area++;
+            num_culled++;
+            continue;
+        }
+
+        if (num_out_near == 3)
+        {
+            num_cull_near++;
+            num_culled++;
+            continue;
+        }
+
+        if (num_out_far == 3)
+        {
+            num_cull_far++;
+            num_culled++;
+            continue;
+        }
+
+        // Before transforming to screen space, find area in world space
         // Check backface culling
         vec3_t vector_a = vec3_from_vec4(transformed_vertices[0]); /*   A   */
         vec3_t vector_b = vec3_from_vec4(transformed_vertices[1]); /*  / \  */
@@ -444,7 +526,19 @@ void update(void) {
         vec3_t vector_ab = vec3_sub(vector_b, vector_a);
         vec3_t vector_ac = vec3_sub(vector_c, vector_a);
         vec3_t transformed_normal = vec3_cross(vector_ab, vector_ac);
-        projected_triangle.area2 = vec3_dot(transformed_normal, transformed_normal);
+        //float area2 = vec3_dot(transformed_normal, transformed_normal);
+
+        // Scale and translate the projected points to the middle of the screen
+        for (int j = 0; j < 3; j++) {
+            transformed_vertices[j] = to_screen_space(transformed_vertices[j]);
+        }
+
+
+        vec3_t face_normal = vec3_cross(
+                            vec3_sub(face_vertices[1],face_vertices[0]),
+                            vec3_sub(face_vertices[2],face_vertices[0])
+                        );
+        vec3_normalize(&face_normal);
 
         // Find the vector between a point in the triangle and camera origin
         vec3_t origin = {0.f, 0.f, 0.f};
@@ -453,57 +547,118 @@ void update(void) {
 
         // Bypass the triangles looking away from camera
         bool backfacing = isBackface(
-                              projected_triangle.points[0].x, projected_triangle.points[0].y,
-                              projected_triangle.points[1].x, projected_triangle.points[1].y,
-                              projected_triangle.points[2].x, projected_triangle.points[2].y
+                              transformed_vertices[0].x, transformed_vertices[0].y,
+                              transformed_vertices[1].x, transformed_vertices[1].y,
+                              transformed_vertices[2].x, transformed_vertices[2].y
                           );
         bool front_facing = rayDotNormal > 0.0f;
         front_facing = !backfacing;
         if (cull_method == CULL_BACKFACE && !front_facing)
         {
+            num_cull_backface++;
             num_culled++;
             continue;
         }
 
-          polygon_t polygon = create_polygon_from_triangle(
-              vec3_from_vec4(transformed_vertices[0]),
-              vec3_from_vec4(transformed_vertices[1]),
-              vec3_from_vec4(transformed_vertices[2])
-          );
 
-          //clip_polygon(&polygon, frustum_planes);
+          clip_polygon(&polygon); //, frustum_planes);
           if (polygon.num_vertices < 3)
           {
+              num_cull_few++;
               num_culled++;
               continue;
           }
-          addTriangleToRender(projected_triangle);
-          /*
-          int tris = polygon.num_vertices - 2;
-            for(int tri=0; tri<tris; tri++)
-            {
-              vec3_t v0 = polygon.vertices[0];
-              vec3_t v1 = polygon.vertices[tri+1];
-              vec3_t v2 = polygon.vertices[tri+2];
-              // want to use interplation factor for all attributes!
-              vec4_t transformed_and_clipped_vertices[3];
-              transformed_and_clipped_vertices[0] = vec4_from_vec3(v0);
-              transformed_and_clipped_vertices[1] = vec4_from_vec3(v1);
-              transformed_and_clipped_vertices[2] = vec4_from_vec3(v2);
 
+          if (polygon.num_vertices==3)
+          {
+              if (display_normals_enable)
+              {
+                  addLineToRender(face_normal, center, mvp);
+              }
+          }
+
+          vec4_t transformed_and_clipped_vertices[3];
+          if (polygon.num_vertices == 3)
+          {
+              int index0 = 0;
+              int index1 = 1;
+              int index2 = 2;
+              triangle_t projected_triangle;
+              projected_triangle.z = 0.f;
+
+
+              transformed_and_clipped_vertices[0] = vec4_from_vec3(polygon.vertices[index0]); // Notice always first
+              transformed_and_clipped_vertices[1] = vec4_from_vec3(polygon.vertices[index1]);
+              transformed_and_clipped_vertices[2] = vec4_from_vec3(polygon.vertices[index2]);
               for (int j=0; j<3; j++)
               {
-                vec4_t projected_point = to_screen_space(transformed_and_clipped_vertices[j]);
+                vec4_t projected_point = mat4_mul_vec4_project( projection_matrix, transformed_and_clipped_vertices[j] );
+                projected_triangle.points[j] = to_screen_space(projected_point);
+              }
+
+
+              vec2_t a = vec2_sub(
+                        vec2_from_vec4( projected_triangle.points[1] ),
+                        vec2_from_vec4( projected_triangle.points[2] ) );
+              vec2_t b = vec2_sub(
+                        vec2_from_vec4( projected_triangle.points[0] ),
+                        vec2_from_vec4( projected_triangle.points[2] ) );
+
+              float area2 = fabsf((a.x * b.y) - (a.y * b.x));
+              projected_triangle.area2 = area2;
+
+              projected_triangle.texcoords[0] = polygon.texcoords[index0];
+              projected_triangle.texcoords[1] = polygon.texcoords[index1];
+              projected_triangle.texcoords[2] = polygon.texcoords[index2];
+              addTriangleToRender(projected_triangle);
+          }
+          else
+          {
+            for(int tri=0; tri<polygon.num_vertices - 2; tri++)
+            {
+              transformed_and_clipped_vertices[0] = vec4_from_vec3(polygon.vertices[0]); // Notice always first
+              transformed_and_clipped_vertices[1] = vec4_from_vec3(polygon.vertices[tri+1]);
+              transformed_and_clipped_vertices[2] = vec4_from_vec3(polygon.vertices[tri+2]);
+
+              triangle_t projected_triangle;
+              projected_triangle.z = 0.f;
+              for (int j=0; j<3; j++)
+              {
+                vec4_t projected_point = mat4_mul_vec4_project( projection_matrix, transformed_and_clipped_vertices[j] );
+
+                projected_point = to_screen_space(projected_point);
+                // TODO add culling if all 2 xes or 2 ys same
+
                 projected_triangle.points[j].x = projected_point.x;
                 projected_triangle.points[j].y = projected_point.y;
                 projected_triangle.points[j].z = projected_point.z;
                 projected_triangle.points[j].w = projected_point.w;
-                projected_triangle.z = projected_point.z;
+
+                projected_triangle.z = fmax( projected_triangle.z, projected_point.z );
+
               }
 
-              addTriangleToRender(projected_triangle);
-            }*/
+              projected_triangle.texcoords[0] = polygon.texcoords[0];
+              projected_triangle.texcoords[1] = polygon.texcoords[tri+1];
+              projected_triangle.texcoords[2] = polygon.texcoords[tri+2];
 
+              vec2_t a = vec2_sub(
+                        vec2_from_vec4( projected_triangle.points[1] ),
+                        vec2_from_vec4( projected_triangle.points[2] ) );
+              vec2_t b = vec2_sub(
+                        vec2_from_vec4( projected_triangle.points[0] ),
+                        vec2_from_vec4( projected_triangle.points[2] ) );
+
+              float area2 = fabsf((a.x * b.y) - (a.y * b.x));
+              projected_triangle.area2 = area2;
+
+              projected_triangle.center = center;
+              projected_triangle.normal = face_normal;
+              // projected_triangle.colors = face_colors[0]; // TODO lerp colors
+
+              addTriangleToRender(projected_triangle);
+            }
+          }
     }
     vertex_time_end = SDL_GetTicks();
 }
@@ -641,12 +796,6 @@ void render(void) {
     clear_z_buffer( 1.0f );
     draw_grid();
 
-    vec3_t centerPos = {0,0,0};
-    vec3_t camera_dir =
-        vec3_sub(camera.position, centerPos);
-
-    vec3_normalize(&camera_dir);
-
     if (sort_faces_by_z_enable) sort();
 
     // Loop all projected triangles and render them
@@ -675,24 +824,24 @@ void render(void) {
     float timediff = 0.f;
     if (time2>0 && time1>0) timediff = time1/(float)time2;
 
-static int frames_per_second = 0;
-static int old_time = 0;
-static int old_frames = 0;
-int time = SDL_GetTicks();
-if (old_time < time)
-{
-  old_time = time + 1000;
-  frames_per_second = numframes - old_frames;
-  old_frames = numframes;
+    static int frames_per_second = 0;
+    static int old_time = 0;
+    static int old_frames = 0;
+    int time = SDL_GetTicks();
+    if (old_time < time)
+    {
+      old_time = time + 1000;
+      frames_per_second = numframes - old_frames;
+      old_frames = numframes;
 
-}
+    }
 
 
 
     if (display_normals_enable)
     {
         color = 0xFF00FF00;
-        int num_lines = 0;//array_length(lines_to_render);
+        int num_lines = array_length(lines_to_render);
         for (int i = 0; i < num_lines; i++) {
             line_t line = lines_to_render[i];
             draw_line3d(line.a.x, line.a.y, line.a.w, line.b.x, line.b.y, line.b.w, color);
@@ -701,22 +850,35 @@ if (old_time < time)
     }
 
     //draw_triangle(300, 100, 50, 400, 500, 700, 0xFF00FF00);
-    /*draw_textured_triangle_p(
-    300, 100, 0.0f, 1.0f, 0.0f, 0.0f,
-    50, 400, 0.0f, 1.0f, 0.0f, 1.0f,
-    500, 700, 0.0f, 1.0f, 1.0f, 1.0f,
+    draw_triangle_textured_p(
+    (vertex_texcoord_t){ 0,   get_window_height()-0, 0.0f,   1.0f, 0.0f, 0.0f },
+    (vertex_texcoord_t){ 100, get_window_height()-100, 0.0f, 1.0f, 1.0f, 1.0f},
+    (vertex_texcoord_t){ 100, get_window_height()-00, 0.0f,  1.0f, 1.0f, 0.0f},
     mesh_texture
-    );*/
+    );
 
     // Clear the array of triangles to render every frame loop
-    //array_free(lines_to_render);
+
 #if defined(DYNAMIC_MEM_EACH_FRAME)
     array_free(triangles_to_render);
+    array_free(lines_to_render);
 #endif
 
     moveto(10,10);
     gprintf("vertexTime:%d, my func: %d, pikuma: %d. ms/ms2=%f\n", vertex_time, time1, time2, (double)timediff);
-    gprintf("frame %d, fps:%d, culled:%d, trisRender:%d", numframes, frames_per_second, num_culled, num_triangles_to_render );
+    gprintf("frame %d, fps:%d, culled:%d, trisRender:%d\n", numframes, frames_per_second, num_culled, num_triangles_to_render );
+    gprintf("1,2,3,4,5,6, 1:wire points, 2:wire, 3:fill 4:fill wire, 5:tex, 6:tex wire\n");
+    gprintf("c - cull_method=%d\n", cull_method);
+    gprintf("d - disable cull=%d\n", cull_method);
+    gprintf("z - sort faces by Z=%d\n", sort_faces_by_z_enable);
+    gprintf("n - display_normals_enable=%d\n", display_normals_enable);
+    gprintf("t - torb=%d\n", draw_triangles_torb);
+    gprintf("num_culled=%d, not culled:%d, tris rendered:%d\n", num_culled, num_not_culled, num_triangles_to_render);
+    gprintf("num_cull_zero_area=%d\n", num_cull_zero_area);
+    gprintf("num_cull_near=%d, far=%d, xy:%d\n", num_cull_near, num_cull_far, num_cull_xy);
+    gprintf("num_cull_few=%d, many:%d\n", num_cull_few, num_cull_many);
+    gprintf("num_cull_backface=%d\n", num_cull_backface);
+
 
     render_color_buffer();
 }
@@ -732,20 +894,9 @@ void free_resources(void) {
     free_mesh(&mesh);
 }
 
-int EndsWith(const char *str, const char *suffix)
-{
-    if (!str || !suffix)
-        return 0;
-    size_t lenstr = strlen(str);
-    size_t lensuffix = strlen(suffix);
-    if (lensuffix >  lenstr)
-        return 0;
-    return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
-}
-
 int main(int argc, char *argv[])
 {
-    SDL_Log("Hello courses.pikuma.com !!\n");
+    SDL_Log("Hello courses.pikuma.com ! Build %s at %s\n", __DATE__, __TIME__);
     const char* mesh_file = "./assets/cube.obj";
     const char* texture_file = "./assets/cube.png";
     for(int i=0; i<argc; i++)
@@ -768,6 +919,7 @@ int main(int argc, char *argv[])
     while (is_running) {
         process_input();
         update();
+        vertexShading(uniforms.model_matrix, uniforms.view_matrix, uniforms.projection_matrix);
         render();
     }
     destroy_window();

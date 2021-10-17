@@ -9,8 +9,8 @@
 #include "func.h"
 
 static void draw_pixel(int x, int y, uint32_t color) {
-    if (x >= 0 && x < window_width && y >= 0 && y < window_height) {
-        color_buffer[(window_width * y) + x] = color;
+    if (x >= 0 && x < get_window_width() && y >= 0 && y < get_window_height()) {
+        color_buffer[(get_window_width() * y) + x] = color;
     }
 }
 
@@ -228,8 +228,8 @@ void draw_texel(
     }
     if ( (alpha+beta+gamma) > 1.0f )
     {
-        draw_pixel(x, y, 0x00550055);// R
-        return;
+        //draw_pixel(x, y, 0x00550055);// R
+        //return;
     }
     if ( alpha != alpha)
     {
@@ -276,10 +276,10 @@ void draw_texel(
     float z = 1.0 - interpolated_reciprocal_w;
 
     // Only draw the pixel if the depth value is less than the one previously stored in the z-buffer
-    if (z < z_buffer[(window_width * y) + x] && z > .01 && z < 1.) {
+    if (z < z_buffer[(get_window_width() * y) + x]) {
 
         // Update the z-buffer value with the 1/w of this current pixel
-        z_buffer[(window_width * y) + x] = z;
+        z_buffer[(get_window_width() * y) + x] = z;
 
         // Now we can divide back both interpolated values by 1/w
         interpolated_u /= interpolated_reciprocal_w;
@@ -288,10 +288,11 @@ void draw_texel(
         // Map the UV coordinate to the full texture width and height
         int tex_x = abs((int)(interpolated_u * texture_width));
         int tex_y = abs((int)(interpolated_v * texture_height));
-        //tex_x %= texture_width;
-        //tex_y %= texture_height;
-        bool oob = tex_x < 0 || tex_y < 0 || tex_x > texture_width-1 || tex_y > texture_width-1;
-        uint32_t color = oob ? 0xFF550055 : texture[(texture_width * tex_y) + tex_x];
+        // Wrap needed for certain textures...
+        tex_x &= (texture_width-1);
+        tex_y &= (texture_height-1);
+        bool oob = tex_x < 0 || tex_y < 0 || tex_x > (texture_width-1) || tex_y > (texture_height-1);
+        uint32_t color = oob ? 0xFF880099 : texture[(texture_width * tex_y) + tex_x];
         /*U8 red = (U8)(alpha*255.f) & 0xFF;
         U8 green = (U8)(beta*255.f) & 0xFF;
         U8 blue = (U8)(gamma*255.f) & 0xFF;
@@ -324,6 +325,11 @@ void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex
     float z2 = p2.z;
     float u2 = p2.u;
     float v2 = p2.v;
+
+    if (fx0 < 0 && fx1 < 0 && fx2 < 0) return; // out left
+    if (fx0 > get_window_width()-1 && fx1 > get_window_width()-1 && fx2 > get_window_width()-1) return; // out right
+    if (fy0 < 0 && fy1 < 0 && fy2 < 0) return; // out top
+    if (fy0 > get_window_height()-1 && fy1 > get_window_height()-1 && fy2 > get_window_height()-1) return; // out bottom
 
     // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
     if (fy0 > fy1) {
@@ -397,11 +403,16 @@ void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex
                 int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
             }
 
+            if (x_start > get_window_width()) continue;
+            if (x_end < 0) continue;
+            x_start = fmax(0, x_start);
+            x_end = fmin(get_window_width(), x_end);
+
             for (int x = x_start; x < x_end; x++) {
 
                 // OPTIM remove this if real clipping
-                if (x < 0 || x > window_width-1) continue;
-                if (y < 0 || y > window_height-1) continue;
+                if (x < 0 || x > get_window_width()-1) continue;
+                if (y < 0 || y > get_window_height()-1) continue;
 
                 // Draw our pixel with the color that comes from the texture
                 draw_texel(x, y, texture, point_a, point_b, point_c, a_uv, b_uv, c_uv);
@@ -428,10 +439,15 @@ void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex
                 int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
             }
 
+            if (x_start > get_window_width()) continue;
+            if (x_end < 0) continue;
+            x_start = fmax(0, x_start);
+            x_end = fmin(get_window_width(), x_end);
+
             for (int x = x_start; x < x_end; x++) {
 
-                if (x < 0 || x > window_width-1) continue;
-                if (y < 0 || y > window_height-1) continue;
+                if (x < 0 || x > get_window_width()-1) continue;
+                if (y < 0 || y > get_window_height()-1) continue;
 
                 // Draw our pixel with the color that comes from the texture
                 draw_texel(x, y, texture, point_a, point_b, point_c, a_uv, b_uv, c_uv);

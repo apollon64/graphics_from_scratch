@@ -89,14 +89,11 @@ static void interpolate_color(int x, int y,
         return;
     }
 
-    // OPTIM can remove this bounds check if clipping
-    if (x < 0 || x > window_width-1) return;
-    if (y < 0 || y > window_height-1) return;
-    float buffer_z = z_buffer[(window_width * y) + x];
+    float buffer_z = z_buffer[(get_window_width() * y) + x];
     if ( interpolated_z < buffer_z ) {
         //draw_texel(x, y, u, v, texture);
         setpix(x,y,colors[0]);
-        z_buffer[(window_width * y) + x] = interpolated_z;
+        z_buffer[(get_window_width() * y) + x] = interpolated_z;
     }
     /*uint32_t color = 0xFF000000;
     U8 red =   (U8)clampf( 255*rweights.x,0,255) & 0xFF;
@@ -175,10 +172,10 @@ static void interpolate_uv(int x, int y,
         return;
     }
 
-    float buffer_z = z_buffer[(window_width * y) + x];
+    float buffer_z = z_buffer[(get_window_width() * y) + x];
     if ( interpolated_z < buffer_z ) {
         draw_texel(x, y, u, v, texture);
-        z_buffer[(window_width * y) + x] = interpolated_z;
+        z_buffer[(get_window_width() * y) + x] = interpolated_z;
     }
     /*uint32_t color = 0xFF000000;
     U8 red =   (U8)clampf( 255*rweights.x,0,255) & 0xFF;
@@ -247,16 +244,8 @@ void draw_triangle(
         // No height. return early
         return;
     }
-    vec2_t a = vec2_sub( (vec2_t) {
-        x1,y1
-    }, (vec2_t) {
-        x2,y2
-    } );
-    vec2_t b = vec2_sub( (vec2_t) {
-        x0,y0
-    }, (vec2_t) {
-        x2,y2
-    } );
+    vec2_t a = vec2_sub( (vec2_t) {x1,y1}, (vec2_t) { x2,y2 } );
+    vec2_t b = vec2_sub( (vec2_t) {x0,y0}, (vec2_t) { x2,y2 } );
     float area2 = fabsf((a.x * b.y) - (a.y * b.x));
     float area_triangle_abc = .5f * fabsf((a.x * b.y) - (a.y * b.x));
 

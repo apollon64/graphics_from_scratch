@@ -139,13 +139,7 @@ void PrintCString( char* a_String, int x1, int y1)
                 int px = plotx+x;
                 int py = ploty+y;
 
-//                if (x<0) return;
-//                if (x>=window_width) return;
-//                if (y<0) return;
-//                if (y>=window_height) return;
-//                color_buffer[y*window_width+x] = color;
-
-                if (bit && px < (int)(window_width) && py < (int)(window_height)) setpix(px,py,global_draw_state.color);
+                if (bit && px < (int)(get_window_width()) && py < (int)(get_window_height())) setpix(px,py,global_draw_state.color);
             }
         }
         plotx += fontWidth;

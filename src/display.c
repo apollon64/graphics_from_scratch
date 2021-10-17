@@ -4,8 +4,8 @@
 
 enum eCull_method cull_method;
 enum eRender_method render_method;
-int window_width = 800;
-int window_height = 800;
+static int window_width;
+static int window_height;
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_Texture* color_buffer_texture = NULL;
@@ -21,10 +21,11 @@ bool init_window(void) {
     // Set size of SDL window to screen size
     SDL_DisplayMode display_mode;
     SDL_GetDisplayMode(0, 0, &display_mode);
-    //window_width = display_mode.w;
-    //window_height = display_mode.h;
-    SDL_Log("set window %dx%d\n", window_width, window_height);
-
+    int fullscreen_width = 800;//display_mode.w;
+    int fullscreen_height = 600;//display_mode.h;
+    window_width = fullscreen_width;// / 2;
+    window_height = fullscreen_height;// / 2;
+    SDL_Log("set window %dx%d\n", fullscreen_width, fullscreen_height);
 
     int posX=SDL_WINDOWPOS_CENTERED;
     int posY=SDL_WINDOWPOS_CENTERED;
@@ -32,8 +33,8 @@ bool init_window(void) {
                  NULL /*border*/,
                  posX,
                  posY,
-                 window_width,
-                 window_height,
+                 fullscreen_width,
+                 fullscreen_height,
                  SDL_WINDOW_BORDERLESS /*flags*/
              );
     if (!window) {
@@ -93,4 +94,13 @@ void destroy_window(void)
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
+}
+
+int get_window_width()
+{
+    return window_width;
+}
+int get_window_height()
+{
+    return window_height;
 }
