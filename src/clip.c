@@ -3,7 +3,7 @@
 #include <math.h> // sin cos
 #include <assert.h>
 
-static int sgn(float v) { return v >= 0.0f ? 1 : 0; }
+//static int sgn(float v) { return v >= 0.0f ? 1 : 0; }
 
 void init_frustum_planes(float fov_x, float fov_y, float z_near, float z_far, plane_t* frustum_planes) {
   float cos_half_fov_x = cosf(fov_x / 2.f);

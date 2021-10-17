@@ -5,6 +5,12 @@
 #include "texture.h"
 #include "triangle.h"
 
+
+void int_swap(int* a, int* b);
+void float_swap(float* a, float* b);
+void uint32_t_swap(uint32_t* a, uint32_t* b);
+void vertex_texcoord_t_swap(vertex_texcoord_t *a, vertex_texcoord_t *b);
+
 float lerp (float a, float b, float f);
 int clamp(int x, int lo, int hi);
 uint32_t packColor(U8 r, U8 g, U8 b);

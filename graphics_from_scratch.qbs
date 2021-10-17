@@ -24,6 +24,8 @@ CppApplication {
         "src/matrix.h",
         "src/mesh.c",
         "src/mesh.h",
+        "src/misc.c",
+        "src/misc.h",
         //"src/plf_nanotimer.h",
         "src/stretchy_buffer.h",
         "src/texture.c",
@@ -36,6 +38,7 @@ CppApplication {
         "src/vector.h",
         "src/render_font/software_bitmapfont.h",
         "src/render_font/software_bitmapfont.c",
+
 
     ]
     cpp.cLanguageVersion: "c99"

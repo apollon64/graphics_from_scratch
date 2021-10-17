@@ -89,6 +89,9 @@ static void interpolate_color(int x, int y,
         return;
     }
 
+    // OPTIM can remove this bounds check if clipping
+    if (x < 0 || x > window_width-1) return;
+    if (y < 0 || y > window_height-1) return;
     float buffer_z = z_buffer[(window_width * y) + x];
     if ( interpolated_z < buffer_z ) {
         //draw_texel(x, y, u, v, texture);

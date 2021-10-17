@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include "func.h"
 
 static void draw_pixel(int x, int y, uint32_t color) {
     if (x >= 0 && x < window_width && y >= 0 && y < window_height) {
@@ -13,7 +14,7 @@ static void draw_pixel(int x, int y, uint32_t color) {
     }
 }
 
-static void draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
+static void draw_line_p(int x0, int y0, int x1, int y1, uint32_t color) {
     int delta_x = (x1 - x0);
     int delta_y = (y1 - y0);
 
@@ -57,7 +58,7 @@ void fill_flat_bottom_triangle(int x0, int y0, int x1, int y1, int x2, int y2, u
 
     // Loop all the scanlines from top to bottom
     for (int y = y0; y <= y2; y++) {
-        draw_line(x_start, y, x_end, y, color);
+        draw_line_p(x_start, y, x_end, y, color);
         x_start += inv_slope_1;
         x_end += inv_slope_2;
     }
@@ -87,7 +88,7 @@ void fill_flat_top_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint
 
     // Loop all the scanlines from bottom to top
     for (int y = y2; y >= y0; y--) {
-        draw_line(x_start, y, x_end, y, color);
+        draw_line_p(x_start, y, x_end, y, color);
         x_start -= inv_slope_1;
         x_end -= inv_slope_2;
     }
@@ -154,9 +155,9 @@ void draw_filled_triangle_p(int x0, int y0, int x1, int y1, int x2, int y2, uint
 // Draw a triangle using three raw line calls
 ///////////////////////////////////////////////////////////////////////////////
 void draw_triangle_p(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color) {
-    draw_line(x0, y0, x1, y1, color);
-    draw_line(x1, y1, x2, y2, color);
-    draw_line(x2, y2, x0, y0, color);
+    draw_line_p(x0, y0, x1, y1, color);
+    draw_line_p(x1, y1, x2, y2, color);
+    draw_line_p(x2, y2, x0, y0, color);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -271,24 +272,34 @@ void draw_texel(
     // Also interpolate the value of 1/w for the current pixel
     interpolated_reciprocal_w = (1.0f / point_a.w) * alpha + (1.0f / point_b.w) * beta + (1.0f / point_c.w) * gamma;
 
-    // Now we can divide back both interpolated values by 1/w
-    interpolated_u /= interpolated_reciprocal_w;
-    interpolated_v /= interpolated_reciprocal_w;
+    // Adjust 1/w so the pixels that are closer to the camera have smaller values
+    float z = 1.0 - interpolated_reciprocal_w;
 
-    // Map the UV coordinate to the full texture width and height
-    int tex_x = abs((int)(interpolated_u * texture_width));
-    int tex_y = abs((int)(interpolated_v * texture_height));
-    //tex_x %= texture_width;
-    //tex_y %= texture_height;
-    bool oob = ((texture_width * tex_y) + tex_x) >= (texture_width*texture_height) ;
-    uint32_t color = oob ? 0xFF550055 : texture[(texture_width * tex_y) + tex_x];
-    /*U8 red = (U8)(alpha*255.f) & 0xFF;
-    U8 green = (U8)(beta*255.f) & 0xFF;
-    U8 blue = (U8)(gamma*255.f) & 0xFF;
-    color = (255u << 24) | (red<<16) | (green<<8) | blue;*/
-    draw_pixel(x, y, color);
+    // Only draw the pixel if the depth value is less than the one previously stored in the z-buffer
+    if (z < z_buffer[(window_width * y) + x] && z > .01 && z < 1.) {
 
-    //draw_pixel_depth(x,y,color,depth);
+        // Update the z-buffer value with the 1/w of this current pixel
+        z_buffer[(window_width * y) + x] = z;
+
+        // Now we can divide back both interpolated values by 1/w
+        interpolated_u /= interpolated_reciprocal_w;
+        interpolated_v /= interpolated_reciprocal_w;
+
+        // Map the UV coordinate to the full texture width and height
+        int tex_x = abs((int)(interpolated_u * texture_width));
+        int tex_y = abs((int)(interpolated_v * texture_height));
+        //tex_x %= texture_width;
+        //tex_y %= texture_height;
+        bool oob = tex_x < 0 || tex_y < 0 || tex_x > texture_width-1 || tex_y > texture_width-1;
+        uint32_t color = oob ? 0xFF550055 : texture[(texture_width * tex_y) + tex_x];
+        /*U8 red = (U8)(alpha*255.f) & 0xFF;
+        U8 green = (U8)(beta*255.f) & 0xFF;
+        U8 blue = (U8)(gamma*255.f) & 0xFF;
+        color = (255u << 24) | (red<<16) | (green<<8) | blue;*/
+        draw_pixel(x, y, color);
+    }
+
+
 }
 
 void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, uint32_t *texture) //, uint32_t* colors, float area2)
@@ -387,6 +398,11 @@ void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex
             }
 
             for (int x = x_start; x < x_end; x++) {
+
+                // OPTIM remove this if real clipping
+                if (x < 0 || x > window_width-1) continue;
+                if (y < 0 || y > window_height-1) continue;
+
                 // Draw our pixel with the color that comes from the texture
                 draw_texel(x, y, texture, point_a, point_b, point_c, a_uv, b_uv, c_uv);
             }
@@ -413,6 +429,10 @@ void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex
             }
 
             for (int x = x_start; x < x_end; x++) {
+
+                if (x < 0 || x > window_width-1) continue;
+                if (y < 0 || y > window_height-1) continue;
+
                 // Draw our pixel with the color that comes from the texture
                 draw_texel(x, y, texture, point_a, point_b, point_c, a_uv, b_uv, c_uv);
             }

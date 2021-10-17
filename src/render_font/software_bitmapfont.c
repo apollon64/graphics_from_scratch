@@ -12,6 +12,7 @@
 #include <assert.h>
 
 #include "../display.h"
+#include "../func.h"
 
 static bool initialized = false;
 
@@ -44,6 +45,61 @@ char buffer[8*1024]; // Assert you never want to print more than 8k chars on scr
 // 1080/8 = 135
 // 240*135 = 32400
 
+void setfont(int width, int height)
+{
+    if (width==8 && height==8)
+    {
+        global_draw_state.selected_font = FONT_8x8;
+    }
+    else if (width==8 && height==14)
+    {
+        global_draw_state.selected_font = FONT_8x14;
+    }
+    else if (width==8 && height==16)
+    {
+        global_draw_state.selected_font = FONT_8x16;
+    }
+    struct selected_font_properties props;
+    switch(global_draw_state.selected_font)
+    {
+#define ElementsOf(x) sizeof(x)/sizeof(x[0])
+    case FONT_8x8:
+        props.width = 8;
+        props.height = 8;
+        props.base = 9;
+        props.fontData = font8x8;
+        props.arraySize = ElementsOf(font8x8);
+        break;
+    case FONT_8x14:
+        props.width = 8;
+        props.height = 14;
+        props.base = 15;
+        props.fontData = font8x14;
+        props.arraySize = ElementsOf(font8x14);
+        break;
+    case FONT_8x16:
+        props.width = 8;
+        props.height = 16;
+        props.base = 17;
+        props.fontData = font8x16;
+        props.arraySize = ElementsOf(font8x16);
+        break;
+#undef ElementsOf
+    case FONT_INVALID:
+        assert(0);
+    }
+    global_draw_state.selected_font_properties = props;
+}
+
+
+void FontPainterInit()
+{
+    setfont(8,8);
+    global_draw_state.color = 0xFFFFFFFF;
+    global_draw_state.movex = 0;
+    global_draw_state.movey = 0;
+    initialized = true;
+}
 
 void moveto(float x, float y)
 {
@@ -108,59 +164,7 @@ void gprintf(const char *fmt,  ...)
     va_end(ap);
 }
 
-void setfont(int width, int height)
-{
-    if (width==8 && height==8)
-    {
-        global_draw_state.selected_font = FONT_8x8;
-    }
-    else if (width==8 && height==14)
-    {
-        global_draw_state.selected_font = FONT_8x14;
-    }
-    else if (width==8 && height==16)
-    {
-        global_draw_state.selected_font = FONT_8x16;
-    }
-    struct selected_font_properties props;
-    switch(global_draw_state.selected_font)
-    {
-#define ElementsOf(x) sizeof(x)/sizeof(x[0])
-    case FONT_8x8:
-        props.width = 8;
-        props.height = 8;
-        props.base = 9;
-        props.fontData = font8x8;
-        props.arraySize = ElementsOf(font8x8);
-        break;
-    case FONT_8x14:
-        props.width = 8;
-        props.height = 14;
-        props.base = 15;
-        props.fontData = font8x14;
-        props.arraySize = ElementsOf(font8x14);
-        break;
-    case FONT_8x16:
-        props.width = 8;
-        props.height = 16;
-        props.base = 17;
-        props.fontData = font8x16;
-        props.arraySize = ElementsOf(font8x16);
-        break;
-#undef ElementsOf
-    case FONT_INVALID:
-        assert(0);
-    }
-    global_draw_state.selected_font_properties = props;
-}
 
-FontPainterInit()
-{
-    setfont(8,8);
-    global_draw_state.color = 0xFFFFFFFF;
-    global_draw_state.movex = 0;
-    global_draw_state.movey = 0;
-    initialized = true;
-}
+
 
 #endif
