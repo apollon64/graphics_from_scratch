@@ -113,24 +113,33 @@ mat4_t mat4_mul_mat4(mat4_t a, mat4_t b) {
 }
 
 mat4_t mat4_make_perspective(float fov, float aspect, float znear, float zfar) {
-    mat4_t m = mat4_identity();
-    m.m[0][0] = aspect * (1.0f / tanf(fov/2.f));
-    m.m[1][1] = 1.0f / tanf(fov/2.f);
+    // | (h/w)*1/tan(fov/2)             0              0                 0 |
+    // |                  0  1/tan(fov/2)              0                 0 |
+    // |                  0             0     zf/(zf-zn)  (-zf*zn)/(zf-zn) |
+    // |                  0             0              1                 0 |
+    mat4_t m = {{{ 0 }}};
+    m.m[0][0] = aspect * (1 / tan(fov / 2));
+    m.m[1][1] = 1 / tan(fov / 2);
     m.m[2][2] = zfar / (zfar - znear);
-    m.m[2][3] = (-zfar*znear) / (zfar - znear);
-    m.m[3][2] = 1.0f;
+    m.m[2][3] = (-zfar * znear) / (zfar - znear);
+    m.m[3][2] = 1.0;
     return m;
+}
+
+vec4_t vec4_project(vec4_t v) {
+
+    if (v.w != 0.0f)
+    {
+        v.x /= v.w;
+        v.y /= v.w;
+        v.z /= v.w;
+    }
+    return v;
 }
 
 vec4_t mat4_mul_vec4_project(mat4_t mat_proj, vec4_t v) {
     vec4_t result = mat4_mul_vec4(mat_proj, v);
-
-    if (result.w != 0.0f)
-    {
-        result.x /= result.w;
-        result.y /= result.w;
-        result.z /= result.w;
-    }
+    result = vec4_project(result);
     return result;
 }
 
