@@ -11,7 +11,6 @@
 #include <stdarg.h>     /* va_list, va_start, va_arg, va_end */
 #include <assert.h>
 
-#include "../display.h"
 #include "../func.h"
 
 static bool initialized = false;
@@ -139,7 +138,7 @@ void PrintCString( char* a_String, int x1, int y1)
                 int px = plotx+x;
                 int py = ploty+y;
 
-                if (bit && px < (int)(get_window_width()) && py < (int)(get_window_height())) setpix(px,py,global_draw_state.color);
+                if (bit && px < (int)(pk_window_width()) && py < (int)(pk_window_height())) setpix(px,py,global_draw_state.color);
             }
         }
         plotx += fontWidth;

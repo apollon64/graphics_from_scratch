@@ -2,9 +2,47 @@
 
 #include <math.h>
 #include <assert.h>
-#include "display.h"
 #include "vector.h"
 #include <stdio.h>
+
+
+static uint32_t *color_buffer;
+static float* z_buffer;
+static int window_width;
+static int window_height;
+
+void pk_init(uint32_t *user_color_buffer, float* user_z_buffer, int xres, int yres)
+{
+    color_buffer = user_color_buffer;
+    z_buffer = user_z_buffer;
+    window_width = xres;
+    window_height = yres;
+}
+void clear_color_buffer(uint32_t color) {
+    size_t count = window_width * window_height;
+    for (size_t i = 0; i < count; i++) {
+        color_buffer[i] = color;
+    }
+}
+void clear_z_buffer(float depth) {
+    size_t count = window_width * window_height;
+    for (size_t i = 0; i < count; i++) {
+        z_buffer[i] = depth;
+    }
+}
+
+int pk_window_width()
+{
+    return window_width;
+}
+int pk_window_height()
+{
+    return window_height;
+}
+float* pk_z_buffer()
+{
+    return z_buffer;
+}
 
 typedef struct
 {
@@ -109,42 +147,42 @@ uint32_t mix_colors(uint32_t a, uint32_t b, float factor)
 void setpix(int x, int y, uint32_t color)
 {
     if (x<0) return;
-    if (x>=get_window_width()) return;
+    if (x>=window_width) return;
     if (y<0) return;
-    if (y>=get_window_height()) return;
-    color_buffer[y*get_window_width()+x] = color;
+    if (y>=window_height) return;
+    color_buffer[y*window_width+x] = color;
 }
 inline void setpix_no_bound_check(int x, int y, uint32_t color)
 {
-    color_buffer[y*get_window_width()+x] = color;
+    color_buffer[y*window_width+x] = color;
 }
 
 uint32_t getpix(int x, int y)
 {
     if (x<0) return 0;
-    if (x>=get_window_width()) return 0;
+    if (x>=window_width) return 0;
     if (y<0) return 0;
-    if (y>=get_window_height()) return 0;
-    return color_buffer[y*get_window_width()+x];
+    if (y>=window_height) return 0;
+    return color_buffer[y*window_width+x];
 }
 
 void draw_rect(int x, int y, int width, int height, uint32_t color)
 {
     if (width < 1 || height < 1) return;
-    if (x >= get_window_width() || y >= get_window_height()) return;
+    if (x >= window_width || y >= window_height) return;
     int endx = x+width;
     int endy = y+height;
     if (endx <= 0 || endy <= 0) return;
-    int startx = clamp(x, 0, get_window_width()-1);
-    int starty = clamp(y, 0, get_window_height()-1);
-    endx = clamp(endx, 0, get_window_width()-1);
-    endy = clamp(endy, 0, get_window_height()-1);
+    int startx = clamp(x, 0, window_width-1);
+    int starty = clamp(y, 0, window_height-1);
+    endx = clamp(endx, 0, window_width-1);
+    endy = clamp(endy, 0, window_height-1);
     for(int cx=startx; cx<endx; cx++)
         for(int cy=starty; cy<endy; cy++)
         {
-            //if (cx<0 || cy <0 || cx>=get_window_width() || cy >= get_window_height())
+            //if (cx<0 || cy <0 || cx>=window_width || cy >= window_height)
             //{ SDL_Log("draw_rect oob"); abort(); }
-            color_buffer[cy*get_window_width()+cx] = color;
+            color_buffer[cy*window_width+cx] = color;
         }
 }
 
@@ -152,15 +190,15 @@ void draw_grid(void)
 {
     int spacingX = 50;
     int spacingY = 50;
-    for (size_t i = 0; i < get_window_width(); i+=spacingX) {
-        for (size_t j = 0; j < get_window_height(); j++) {
+    for (size_t i = 0; i < window_width; i+=spacingX) {
+        for (size_t j = 0; j < window_height; j++) {
             //setcol(127,127,127);
             setpix(i,j, packColor(75,75,75) );
         }
     }
 
-    for (int y = 0; y < get_window_height(); y+=spacingY) {
-        for (int x = 0; x < get_window_width(); x++) {
+    for (int y = 0; y < window_height; y+=spacingY) {
+        for (int x = 0; x < window_width; x++) {
             //setcol(127,127,127);
             setpix(x,y, packColor(96,96,96) );
         }
@@ -215,6 +253,10 @@ void draw_line(int x0, int y0, int x1, int y1, uint32_t color)
 
 void draw_line3d(int x0, int y0, float w0, int x1, int y1, float w1, uint32_t color)
 {
+    if (x0 < 0 && x1 < 0) return;
+    if (y0 < 0 && y1 < 0) return;
+    if (x0 > window_width && x1 > window_width) return;
+    if (y0 > window_height && y1 > window_height) return;
   int delta_x = x1-x0;
   int delta_y = y1-y0;
   int delta_reciprocal_w = 1.f/w1 - 1.f/w0;
@@ -230,13 +272,17 @@ void draw_line3d(int x0, int y0, float w0, int x1, int y1, float w1, uint32_t co
   for(int i=0; i<=side_len; i++) {
       int x = roundf(cx);
       int y = roundf(cy);
+      if (x < 0) continue;
+      if (y < 0) continue;
+      if (x > window_width) continue;
+      if (y > window_height) continue;
       //float one_over_w = lerp(1.f/z0, 1.f/z1, i/(float)side_len );
       float one_over_w = cw;
       float interpolated_z = 1.0f - one_over_w;
-      if (interpolated_z < z_buffer[y*get_window_height()+x])
+      if (interpolated_z < z_buffer[y*window_height+x])
       {
          setpix( x, y, color);
-         z_buffer[y*get_window_height()+x] = interpolated_z;
+         z_buffer[y*window_height+x] = interpolated_z;
       }
       cx += x_inc;
       cy += y_inc;

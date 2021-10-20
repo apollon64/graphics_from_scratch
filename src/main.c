@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
 #include <SDL2/SDL.h>
 
 #include "func.h"
@@ -21,6 +22,26 @@
 #include "camera.h"
 #include "clip.h"
 #include "render_font/software_bitmapfont.h"
+
+
+// The going could get rough
+
+enum eCull_method {
+    CULL_NONE,
+    CULL_BACKFACE
+};
+
+enum eRender_method {
+    RENDER_WIRE,
+    RENDER_WIRE_VERTEX,
+    RENDER_FILL_TRIANGLE,
+    RENDER_FILL_TRIANGLE_WIRE,
+    RENDER_TEXTURED,
+    RENDER_TEXTURED_WIRE
+};
+
+enum eCull_method cull_method;
+enum eRender_method render_method;
 
 // Review of structs
 
@@ -52,6 +73,8 @@ unsigned int previous_frame_time = 0;
 int num_culled;
 int num_cull_backface;
 int num_cull_zero_area;
+int num_cull_small_area;
+int num_cull_degenerate;
 int num_not_culled;
 int num_cull_near;
 int num_cull_far;
@@ -73,7 +96,7 @@ typedef struct {
 mouse_t mouse;
 
 float z_near = 0.01f;
-float z_far = 100.0f;
+float z_far = 200.0f;
 
 void setup(const char* mesh_file, const char* texture_file) {
     //stb__sbgrow(triangles_to_render,1024*8);
@@ -264,6 +287,11 @@ void process_input(void) {
     mouse.oy = mouse.y;
 }
 
+static void snap(float *v)
+{
+  *v = floorf( (*v) * 128.f)/128.f;
+}
+
 vec4_t to_screen_space(vec4_t v)
 {
     v.x *= (get_window_width() / 2.0f);
@@ -275,31 +303,20 @@ vec4_t to_screen_space(vec4_t v)
     v.x += (get_window_width() / 2.0f);
     v.y += (get_window_height() / 2.0f);
 
+    snap(&v.x);
+    snap(&v.y);
+
     return v;
 }
 
-static bool isBackface(float ax, float ay, float bx, float by, float cx, float cy)
+static bool isBackface(vec2_t a, vec2_t b, vec2_t c, float *area2)
 {
-    vec2_t ab = vec2_sub( (vec2_t) {
-        bx,by
-    }, (vec2_t) {
-        ax,ay
-    } );
-    vec2_t ac = vec2_sub( (vec2_t) {
-        cx,cy
-    }, (vec2_t) {
-        ax,ay
-    } );
-    if (ac.x*ab.y >= ac.y*ab.x) return 1; // change to < for right hand coords
+    vec2_t vec1 = vec2_sub(b,c);
+    vec2_t vec2 = vec2_sub(a,c);
+    *area2 = fabsf((vec1.x * vec2.y) - (vec1.y * vec2.x));
+    if (vec2.x*vec1.y >= vec2.y*vec1.x) return 1; // change to < for right hand coords or >= for left
     return 0;
-    //float area2 = (ab.x * ac.y) - (ab.y * ac.x);
-    //return area2;
 }
-
-/*static void snap(float *v)
-{
-  *v = floorf( (*v) * 256.f)/256.f;
-}*/
 
 
 static void addLineToRender(vec3_t normal, vec3_t center, mat4_t mvp_matrix)
@@ -308,6 +325,7 @@ static void addLineToRender(vec3_t normal, vec3_t center, mat4_t mvp_matrix)
   normal = vec3_mul(normal, line_length);
   vec4_t start = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(center) );
   vec4_t end = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3( vec3_add(center, normal)) );
+  if (start.w < 0 && end.w < 0) return; // TODO proper 3D line clipping
   line_t projected_line = {.a = to_screen_space(start), .b = to_screen_space(end) };
   array_push(lines_to_render, projected_line);
 }
@@ -320,6 +338,13 @@ static void addTriangleToRender(triangle_t projected_triangle)
 #else
   sb_push(triangles_to_render, projected_triangle);
 #endif
+}
+
+static float smoothstep_inv(float A, float B, float v)
+{
+    //float v = i / N;
+    v = 1.0f - (1.0f - v) * (1.0f - v);
+    return (A * v) + (B * (1.0f - v));
 }
 
 void update(void) {
@@ -352,8 +377,25 @@ void update(void) {
     //mesh.rotation.z = 0;
 
     //mesh.translation.x = 0;
-    //mesh.translation.y = 0;
+    static float time = 0.0f;
+    static float dir = 1.0f;
+    //mesh.translation.y = smoothstep_inv(-1, 1, fmod(time, 1.0f) );
+    //mesh.translation.y = smoothstep_inv(1, -1, time );
+
+    if (time > 1.0)
+    {
+        time = 1;
+        dir *= -1;
+    }
+
+    if (time < 0.0)
+    {
+        time = 0;
+        dir *= -1;
+    }
+    time += dir * 0.02;
     mesh.translation.z = 3.5f + mouse.z;
+    mesh.scale.y = 1.0 + smoothstep_inv(0.0, -0.6, 0.2 + .8*time );
 
 
     // Initialize the target looking at the positive z-axis
@@ -422,6 +464,8 @@ void vertexShading(mat4_t model_matrix, mat4_t view_matrix, mat4_t projection_ma
     num_culled = 0;
     num_cull_backface = 0;
     num_cull_zero_area = 0;
+    num_cull_small_area = 0;
+    num_cull_degenerate = 0;
     num_cull_near = 0;
     num_cull_far = 0;
     num_not_culled = 0;
@@ -526,12 +570,13 @@ void vertexShading(mat4_t model_matrix, mat4_t view_matrix, mat4_t projection_ma
         vec3_t vector_ab = vec3_sub(vector_b, vector_a);
         vec3_t vector_ac = vec3_sub(vector_c, vector_a);
         vec3_t transformed_normal = vec3_cross(vector_ab, vector_ac);
-        //float area2 = vec3_dot(transformed_normal, transformed_normal);
 
         // Scale and translate the projected points to the middle of the screen
         for (int j = 0; j < 3; j++) {
+            transformed_vertices[j] = mat4_mul_vec4_project( projection_matrix, transformed_vertices[j] );
             transformed_vertices[j] = to_screen_space(transformed_vertices[j]);
         }
+
 
 
         vec3_t face_normal = vec3_cross(
@@ -546,19 +591,38 @@ void vertexShading(mat4_t model_matrix, mat4_t view_matrix, mat4_t projection_ma
         float rayDotNormal = vec3_dot(camera_ray, transformed_normal);
 
         // Bypass the triangles looking away from camera
+        float area2 = 0;
         bool backfacing = isBackface(
-                              transformed_vertices[0].x, transformed_vertices[0].y,
-                              transformed_vertices[1].x, transformed_vertices[1].y,
-                              transformed_vertices[2].x, transformed_vertices[2].y
+              (vec2_t) {transformed_vertices[0].x, transformed_vertices[0].y},
+              (vec2_t) {transformed_vertices[1].x, transformed_vertices[1].y},
+              (vec2_t) {transformed_vertices[2].x, transformed_vertices[2].y},
+              &area2
                           );
-        bool front_facing = rayDotNormal > 0.0f;
-        front_facing = !backfacing;
-        if (cull_method == CULL_BACKFACE && !front_facing)
+        //float area2 = vec3_dot(transformed_normal, transformed_normal);
+        if (cull_method == CULL_BACKFACE && !backfacing)
         {
             num_cull_backface++;
             num_culled++;
             continue;
         }
+//        if ( area2 < 0.000001f)
+//        {
+//            // Think of a triangle that is 10 wide, 10 high. it has an area of 100 / 2 = 50
+//            // Triangles can be surprisingly small yet contribute to image
+//            num_cull_small_area++;
+//            num_culled++;
+//            continue;
+//        }
+
+//        bool front_facing = rayDotNormal > 0.0f;
+//        //front_facing = !backfacing;
+//        assert(backfacing == !front_facing);
+//        if (cull_method == CULL_BACKFACE && !front_facing)
+//        {
+//            num_cull_backface++;
+//            num_culled++;
+//            continue;
+//        }
 
 
           clip_polygon(&polygon); //, frustum_planes);
@@ -578,6 +642,7 @@ void vertexShading(mat4_t model_matrix, mat4_t view_matrix, mat4_t projection_ma
           }
 
           vec4_t transformed_and_clipped_vertices[3];
+          /*
           if (polygon.num_vertices == 3)
           {
               int index0 = 0;
@@ -612,7 +677,7 @@ void vertexShading(mat4_t model_matrix, mat4_t view_matrix, mat4_t projection_ma
               projected_triangle.texcoords[2] = polygon.texcoords[index2];
               addTriangleToRender(projected_triangle);
           }
-          else
+          else*/
           {
             for(int tri=0; tri<polygon.num_vertices - 2; tri++)
             {
@@ -638,18 +703,30 @@ void vertexShading(mat4_t model_matrix, mat4_t view_matrix, mat4_t projection_ma
 
               }
 
+              bool two_points_same =
+                      (projected_triangle.points[0].x == projected_triangle.points[1].x && projected_triangle.points[0].y == projected_triangle.points[1].y) ||
+                      (projected_triangle.points[1].x == projected_triangle.points[2].x && projected_triangle.points[1].y == projected_triangle.points[2].y) ||
+                      (projected_triangle.points[0].x == projected_triangle.points[2].x && projected_triangle.points[0].y == projected_triangle.points[2].y);
+              if (two_points_same)
+              {
+                  num_cull_degenerate++;
+                  //num_culled++; // Since we clipped, we may have more tris
+                  continue;
+              }
+
+
               projected_triangle.texcoords[0] = polygon.texcoords[0];
               projected_triangle.texcoords[1] = polygon.texcoords[tri+1];
               projected_triangle.texcoords[2] = polygon.texcoords[tri+2];
 
-              vec2_t a = vec2_sub(
+              vec2_t vec1 = vec2_sub(
                         vec2_from_vec4( projected_triangle.points[1] ),
                         vec2_from_vec4( projected_triangle.points[2] ) );
-              vec2_t b = vec2_sub(
+              vec2_t vec2 = vec2_sub(
                         vec2_from_vec4( projected_triangle.points[0] ),
                         vec2_from_vec4( projected_triangle.points[2] ) );
 
-              float area2 = fabsf((a.x * b.y) - (a.y * b.x));
+              float area2 = fabsf((vec1.x * vec2.y) - (vec1.y * vec2.x));
               projected_triangle.area2 = area2;
 
               projected_triangle.center = center;
@@ -874,10 +951,10 @@ void render(void) {
     gprintf("n - display_normals_enable=%d\n", display_normals_enable);
     gprintf("t - torb=%d\n", draw_triangles_torb);
     gprintf("num_culled=%d, not culled:%d, tris rendered:%d\n", num_culled, num_not_culled, num_triangles_to_render);
-    gprintf("num_cull_zero_area=%d\n", num_cull_zero_area);
+    gprintf("num_cull_zero_area=%d, cull_small:%d\n", num_cull_zero_area, num_cull_small_area);
     gprintf("num_cull_near=%d, far=%d, xy:%d\n", num_cull_near, num_cull_far, num_cull_xy);
     gprintf("num_cull_few=%d, many:%d\n", num_cull_few, num_cull_many);
-    gprintf("num_cull_backface=%d\n", num_cull_backface);
+    gprintf("num_cull_backface=%d, num_cull_degenerate(after clip)=%d\n", num_cull_backface, num_cull_degenerate);
 
 
     render_color_buffer();
@@ -913,6 +990,7 @@ int main(int argc, char *argv[])
     SDL_Log("try to load %s and %s", mesh_file, texture_file);
 
     is_running = init_window();
+    if (is_running) pk_init( color_buffer, z_buffer, get_window_width(), get_window_height() );
 
     setup(mesh_file, texture_file);
 

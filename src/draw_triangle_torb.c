@@ -1,7 +1,6 @@
-
-#include "display.h"
-#include "triangle.h"
 #include "draw_triangle_torb.h"
+#include "triangle.h"
+
 #include "func.h"
 
 #include <assert.h>
@@ -89,11 +88,12 @@ static void interpolate_color(int x, int y,
         return;
     }
 
-    float buffer_z = z_buffer[(get_window_width() * y) + x];
+    float* z_buffer = pk_z_buffer();
+    float buffer_z = z_buffer[(pk_window_width() * y) + x];
     if ( interpolated_z < buffer_z ) {
         //draw_texel(x, y, u, v, texture);
         setpix(x,y,colors[0]);
-        z_buffer[(get_window_width() * y) + x] = interpolated_z;
+        z_buffer[(pk_window_width() * y) + x] = interpolated_z;
     }
     /*uint32_t color = 0xFF000000;
     U8 red =   (U8)clampf( 255*rweights.x,0,255) & 0xFF;
@@ -172,10 +172,11 @@ static void interpolate_uv(int x, int y,
         return;
     }
 
-    float buffer_z = z_buffer[(get_window_width() * y) + x];
+    float* z_buffer = pk_z_buffer();
+    float buffer_z = z_buffer[(pk_window_width() * y) + x];
     if ( interpolated_z < buffer_z ) {
         draw_texel(x, y, u, v, texture);
-        z_buffer[(get_window_width() * y) + x] = interpolated_z;
+        z_buffer[(pk_window_width() * y) + x] = interpolated_z;
     }
     /*uint32_t color = 0xFF000000;
     U8 red =   (U8)clampf( 255*rweights.x,0,255) & 0xFF;

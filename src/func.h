@@ -5,7 +5,12 @@
 #include "texture.h"
 #include "triangle.h"
 
-
+void pk_init(uint32_t *user_color_buffer, float* user_z_buffer, int xres, int yres);
+void clear_color_buffer(uint32_t color);
+void clear_z_buffer(float depth);
+int pk_window_width();
+int pk_window_height();
+float* pk_z_buffer();
 void int_swap(int* a, int* b);
 void float_swap(float* a, float* b);
 void uint32_t_swap(uint32_t* a, uint32_t* b);

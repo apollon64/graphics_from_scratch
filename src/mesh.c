@@ -5,7 +5,6 @@
 #include <string.h> // strncmp
 
 #include "array.h"
-#include <SDL2/SDL.h>
 
 mesh_t mesh = {
     .vertices = NULL,
@@ -108,7 +107,7 @@ void load_obj_file_data(const char* filename) {
     int vertex_len = array_length(mesh.vertices);
     int texcoord_len = array_length(mesh.texcoords);
     int faces_len = array_length(mesh.faces);
-    SDL_Log("loaded mesh, verts:%d, texcoords:%d, faces:%d \n", vertex_len, texcoord_len, faces_len);
+    fprintf(stdout, "loaded mesh, verts:%d, texcoords:%d, faces:%d \n", vertex_len, texcoord_len, faces_len);
     fclose(file);
 }
 

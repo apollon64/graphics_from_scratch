@@ -2,8 +2,6 @@
 
 #include <SDL2/SDL.h>
 
-enum eCull_method cull_method;
-enum eRender_method render_method;
 static int window_width;
 static int window_height;
 SDL_Window *window = NULL;
@@ -62,19 +60,6 @@ bool init_window(void) {
                            );
 
     return true;
-}
-
-void clear_color_buffer(uint32_t color) {
-    size_t count = window_width * window_height;
-    for (size_t i = 0; i < count; i++) {
-        color_buffer[i] = color;
-    }
-}
-void clear_z_buffer(float depth) {
-    size_t count = window_width * window_height;
-    for (size_t i = 0; i < count; i++) {
-        z_buffer[i] = depth;
-    }
 }
 
 void render_color_buffer(void) {

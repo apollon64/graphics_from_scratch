@@ -1,17 +1,13 @@
-
-#include "display.h"
-#include "triangle.h"
-#include "draw_triangle_pikuma.h"
-
-
 #include <assert.h>
 #include <math.h>
+
+#include "draw_triangle_pikuma.h"
+#include "triangle.h"
 #include "func.h"
+#include "vector.h"
 
 static void draw_pixel(int x, int y, uint32_t color) {
-    if (x >= 0 && x < get_window_width() && y >= 0 && y < get_window_height()) {
-        color_buffer[(get_window_width() * y) + x] = color;
-    }
+    setpix(x,y,color);
 }
 
 static void draw_line_p(int x0, int y0, int x1, int y1, uint32_t color) {
@@ -275,11 +271,12 @@ void draw_texel(
     // Adjust 1/w so the pixels that are closer to the camera have smaller values
     float z = 1.0 - interpolated_reciprocal_w;
 
+    float* z_buffer = pk_z_buffer();
     // Only draw the pixel if the depth value is less than the one previously stored in the z-buffer
-    if (z < z_buffer[(get_window_width() * y) + x]) {
+    if (z < z_buffer[(pk_window_width() * y) + x]) {
 
         // Update the z-buffer value with the 1/w of this current pixel
-        z_buffer[(get_window_width() * y) + x] = z;
+        z_buffer[(pk_window_width() * y) + x] = z;
 
         // Now we can divide back both interpolated values by 1/w
         interpolated_u /= interpolated_reciprocal_w;
@@ -327,9 +324,9 @@ void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex
     float v2 = p2.v;
 
     if (fx0 < 0 && fx1 < 0 && fx2 < 0) return; // out left
-    if (fx0 > get_window_width()-1 && fx1 > get_window_width()-1 && fx2 > get_window_width()-1) return; // out right
+    if (fx0 > pk_window_width()-1 && fx1 > pk_window_width()-1 && fx2 > pk_window_width()-1) return; // out right
     if (fy0 < 0 && fy1 < 0 && fy2 < 0) return; // out top
-    if (fy0 > get_window_height()-1 && fy1 > get_window_height()-1 && fy2 > get_window_height()-1) return; // out bottom
+    if (fy0 > pk_window_height()-1 && fy1 > pk_window_height()-1 && fy2 > pk_window_height()-1) return; // out bottom
 
     // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
     if (fy0 > fy1) {
@@ -403,16 +400,16 @@ void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex
                 int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
             }
 
-            if (x_start > get_window_width()) continue;
+            if (x_start > pk_window_width()) continue;
             if (x_end < 0) continue;
             x_start = fmax(0, x_start);
-            x_end = fmin(get_window_width(), x_end);
+            x_end = fmin(pk_window_width(), x_end);
 
             for (int x = x_start; x < x_end; x++) {
 
                 // OPTIM remove this if real clipping
-                if (x < 0 || x > get_window_width()-1) continue;
-                if (y < 0 || y > get_window_height()-1) continue;
+                if (x < 0 || x > pk_window_width()-1) continue;
+                if (y < 0 || y > pk_window_height()-1) continue;
 
                 // Draw our pixel with the color that comes from the texture
                 draw_texel(x, y, texture, point_a, point_b, point_c, a_uv, b_uv, c_uv);
@@ -439,15 +436,15 @@ void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex
                 int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
             }
 
-            if (x_start > get_window_width()) continue;
+            if (x_start > pk_window_width()) continue;
             if (x_end < 0) continue;
             x_start = fmax(0, x_start);
-            x_end = fmin(get_window_width(), x_end);
+            x_end = fmin(pk_window_width(), x_end);
 
             for (int x = x_start; x < x_end; x++) {
 
-                if (x < 0 || x > get_window_width()-1) continue;
-                if (y < 0 || y > get_window_height()-1) continue;
+                if (x < 0 || x > pk_window_width()-1) continue;
+                if (y < 0 || y > pk_window_height()-1) continue;
 
                 // Draw our pixel with the color that comes from the texture
                 draw_texel(x, y, texture, point_a, point_b, point_c, a_uv, b_uv, c_uv);
