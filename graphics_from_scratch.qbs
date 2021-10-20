@@ -11,6 +11,8 @@ CppApplication {
         "src/main.c",
         "src/display.c",
         "src/display.h",
+        "src/vertex_shading.c",
+        "src/vertex_shading.h",
     ]
     cpp.cLanguageVersion: "c99"
     cpp.cFlags: [

@@ -6,14 +6,18 @@
 
 #include "array.h"
 
-mesh_t mesh = {
-    .vertices = NULL,
-    .texcoords = NULL,
-    .faces = NULL,
-    .translation = { 0, 0, 0 },
-    .rotation = { 0, 0, 0 },
-    .scale = { 1.0, 1.0, 1.0 },
-};
+static mesh_t init_mesh()
+{
+    mesh_t mesh = {
+        .vertices = NULL,
+        .texcoords = NULL,
+        .faces = NULL,
+        .translation = { 0, 0, 0 },
+        .rotation = { 0, 0, 0 },
+        .scale = { 1.0, 1.0, 1.0 },
+    };
+    return mesh;
+}
 
 vec3_t cube_vertices[N_CUBE_VERTICES] = {
     { .x = -1, .y = -1, .z = -1 }, // 1
@@ -47,23 +51,27 @@ face_t cube_faces[N_CUBE_FACES] = {
     { .a = 6, .b = 1, .c = 4 }
 };
 
-void load_cube_mesh_data(void) {
+mesh_t load_cube_mesh_data(void) {
+    mesh_t mesh = init_mesh();
     for (int i = 0; i < N_CUBE_VERTICES; i++) {
         array_push(mesh.vertices, cube_vertices[i]);
     }
     for (int i = 0; i < N_CUBE_FACES; i++) {
         array_push(mesh.faces, cube_faces[i]);
     }
+    return mesh;
 }
 
 
-void load_obj_file_data(const char* filename) {
+mesh_t load_obj_file_data(const char* filename) {
     FILE* file;
     file = fopen(filename, "r");
+
+    mesh_t mesh = init_mesh();
     if (!file)
     {
         fprintf(stderr, "could not open file %s", filename);
-        return;
+        return mesh; // null mesh
     }
     char line[1024];
 
@@ -109,6 +117,7 @@ void load_obj_file_data(const char* filename) {
     int faces_len = array_length(mesh.faces);
     fprintf(stdout, "loaded mesh, verts:%d, texcoords:%d, faces:%d \n", vertex_len, texcoord_len, faces_len);
     fclose(file);
+    return mesh;
 }
 
 void free_mesh(mesh_t* mesh)
