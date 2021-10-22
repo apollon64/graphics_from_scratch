@@ -268,25 +268,31 @@ void draw_line3d(int x0, int y0, float w0, int x1, int y1, float w1, uint32_t co
   float w_inc = delta_reciprocal_w / (float)side_len;
   float cx = x0;
   float cy = y0;
-  float cw = 1.f/w0;
+  float one_over_w = 1.0f / w0;
   for(int i=0; i<=side_len; i++) {
       int x = roundf(cx);
       int y = roundf(cy);
-      if (x < 0) continue;
-      if (y < 0) continue;
-      if (x > window_width) continue;
-      if (y > window_height) continue;
-      //float one_over_w = lerp(1.f/z0, 1.f/z1, i/(float)side_len );
-      float one_over_w = cw;
-      float interpolated_z = 1.0f - one_over_w;
-      if (interpolated_z < z_buffer[y*window_height+x])
+
+
+      float interpolated_z;
+      // Also interpolate the value of 1/w for the current pixel
+      interpolated_z = 1.0f - one_over_w;
+
+      // One way would be do lerp inverse W every pixel. 2 mul, 2 add/sub
+      //interpolated_z = 1.0f - lerp( 1.f/w0, 1.f/w1, i/(float)side_len );
+
+      if (x >= 0 && y >=0 && x < window_width && y < window_height)
       {
-         setpix( x, y, color);
-         z_buffer[y*window_height+x] = interpolated_z;
+          if (interpolated_z < z_buffer[y*window_width+x])
+          {
+             setpix( x, y, color);
+             z_buffer[y*window_width+x] = interpolated_z;
+          }
       }
+
       cx += x_inc;
       cy += y_inc;
-      cw += w_inc;
+      one_over_w += w_inc;
   }
 }
 

@@ -51,6 +51,27 @@ void init_frustum_planes(float fov_x, float fov_y, float z_near, float z_far)//,
     frustum_planes[FAR_FRUSTUM_PLANE].normal.z = -1;
 }
 
+void init_frustum_planes_ndc()
+{
+    frustum_planes[LEFT_FRUSTUM_PLANE].point = (vec3_t){-1,0,0};
+    frustum_planes[LEFT_FRUSTUM_PLANE].normal = (vec3_t){+1,0,0};
+
+    frustum_planes[RIGHT_FRUSTUM_PLANE].point = (vec3_t){+1,0,0};
+    frustum_planes[RIGHT_FRUSTUM_PLANE].normal = (vec3_t){-1,0,0};
+
+    frustum_planes[BOTTOM_FRUSTUM_PLANE].point = (vec3_t){0,+1,0};
+    frustum_planes[BOTTOM_FRUSTUM_PLANE].normal = (vec3_t){0,-1,0};
+
+    frustum_planes[TOP_FRUSTUM_PLANE].point = (vec3_t){0,-1,0};
+    frustum_planes[TOP_FRUSTUM_PLANE].normal = (vec3_t){0,+1,0};
+
+    frustum_planes[NEAR_FRUSTUM_PLANE].point = (vec3_t){0,0,-1};
+    frustum_planes[NEAR_FRUSTUM_PLANE].normal = (vec3_t){0,0,+1};
+
+    frustum_planes[FAR_FRUSTUM_PLANE].point = (vec3_t){0,0,+1};
+    frustum_planes[FAR_FRUSTUM_PLANE].normal = (vec3_t){0,0,-1};
+}
+
 void clip_polygon_against_plane(polygon_t* polygon, int plane)  // plane_t* frustum_planes
 {
 
@@ -59,24 +80,24 @@ void clip_polygon_against_plane(polygon_t* polygon, int plane)  // plane_t* frus
   vec3_t plane_normal = frustum_planes[plane].normal;
 
   // Declare a static array of inside vertices that will be part of the final polygon returned via parameter
-  vec3_t inside_vertices[MAX_NUM_POLY_VERTICES];
+  vec4_t inside_vertices[MAX_NUM_POLY_VERTICES];
   vec2_t inside_texcoords[MAX_NUM_POLY_VERTICES];
   int num_inside_vertices = 0;
 
   // Start the current vertex with the first polygon vertex, and the previous with the last polygon vertex
-  vec3_t* current_vertex = &polygon->vertices[0];
-  vec3_t* previous_vertex = &polygon->vertices[polygon->num_vertices - 1];
+  vec4_t* current_vertex = &polygon->vertices[0];
+  vec4_t* previous_vertex = &polygon->vertices[polygon->num_vertices - 1];
 
   vec2_t* current_texcoord = &polygon->texcoords[0];
   vec2_t* previous_texcoord = &polygon->texcoords[polygon->num_vertices - 1];
 
   // Calculate the dot product of the current and previous vertex
   float current_dot = 0;
-  float previous_dot = vec3_dot(vec3_sub(*previous_vertex, plane_point), plane_normal);
+  float previous_dot = vec3_dot(vec3_sub(vec3_from_vec4(*previous_vertex), plane_point), plane_normal);
 
   // Loop all the polygon vertices while the current is different than the last one
   while (current_vertex != &polygon->vertices[polygon->num_vertices]) {
-      current_dot = vec3_dot(vec3_sub(*current_vertex, plane_point), plane_normal);
+      current_dot = vec3_dot(vec3_sub(vec3_from_vec4(*current_vertex), plane_point), plane_normal);
 
       // If we changed from inside to outside or from outside to inside
       if (current_dot * previous_dot < 0) {
@@ -89,11 +110,12 @@ void clip_polygon_against_plane(polygon_t* polygon, int plane)  // plane_t* frus
 //          intersection_point = vec3_add(intersection_point, *previous_vertex); // I = Qp + t(Qc-Qp)
 
           // LERP is equivalent to finding intersection using vector math
-          vec3_t intersection_point =
+          vec4_t intersection_point =
           {
                 .x = lerp( previous_vertex->x, current_vertex->x, t),
                 .y = lerp( previous_vertex->y, current_vertex->y, t),
                 .z = lerp( previous_vertex->z, current_vertex->z, t),
+                .w = lerp( previous_vertex->w, current_vertex->w, t),
           };
 
           vec2_t interpolated_tc =
@@ -142,7 +164,7 @@ void clip_polygon(polygon_t* polygon/*, plane_t* frustum_planes*/) {
     clip_polygon_against_plane(polygon, FAR_FRUSTUM_PLANE);//, frustum_planes);
 }
 
-polygon_t create_polygon_from_triangle(vec3_t v0, vec3_t v1, vec3_t v2,
+polygon_t create_polygon_from_triangle(vec4_t v0, vec4_t v1, vec4_t v2,
                                            vec2_t tc0, vec2_t tc1, vec2_t tc2) {
     polygon_t p;
     p.vertices[0] = v0;

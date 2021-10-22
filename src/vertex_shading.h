@@ -34,6 +34,12 @@ extern int num_cull_far;
 extern int num_cull_xy;
 extern int num_cull_few;
 extern int num_cull_many;
+extern int cull_left;
+extern int cull_right;
+extern int cull_bottom;
+extern int cull_top;
+extern int cull_near;
+extern int cull_far;
 
 enum eCull_method {
     CULL_NONE,
@@ -56,5 +62,6 @@ enum eRender_method render_method;
 // or that we accumulate all models into a vertex buffer
 // and then blast through that
 void vertexShading(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t projection_matrix);
+void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t projection_matrix);
 
 #endif

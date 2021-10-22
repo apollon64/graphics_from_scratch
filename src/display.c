@@ -21,8 +21,8 @@ bool init_window(void) {
     SDL_GetDisplayMode(0, 0, &display_mode);
     int fullscreen_width = 800;//display_mode.w;
     int fullscreen_height = 600;//display_mode.h;
-    window_width = fullscreen_width;// / 2;
-    window_height = fullscreen_height;// / 2;
+    window_width = fullscreen_width;
+    window_height = fullscreen_height;
     SDL_Log("set window %dx%d\n", fullscreen_width, fullscreen_height);
 
     int posX=SDL_WINDOWPOS_CENTERED;
@@ -62,15 +62,36 @@ bool init_window(void) {
     return true;
 }
 
+static uint32_t packColor(U8 r, U8 g, U8 b)
+{
+    uint32_t ret = 0xFF000000;
+    //U8 a = 0;
+    //ret |= a << 24;
+    ret |= b << 16;
+    ret |= g << 8;
+    ret |= r << 0;
+    return ret;
+}
+
 void render_color_buffer(void) {
+
+    // Display Z buffer as color
+//    for(int j=0; j<window_height; j++)
+//    for(int i=0; i<window_width; i++)
+//    {
+//        U8 z = (U8)( 255*z_buffer[window_width*j+i] );
+//        color_buffer[window_width*j+i] = packColor(z,z,z);
+//    }
+
+
     SDL_UpdateTexture(
         color_buffer_texture,
         NULL, // rect
         color_buffer, // pixels
         (int)(window_width * sizeof(uint32_t) ) // bytes per row, pitch
     );
-    SDL_RenderCopy(renderer, color_buffer_texture, NULL, NULL);
 
+    SDL_RenderCopy(renderer, color_buffer_texture, NULL, NULL);
     SDL_RenderPresent(renderer);
 }
 

@@ -152,12 +152,21 @@ static void interpolate_uv(int x, int y,
     u *= one_over_one_over_w;
     v *= one_over_one_over_w;
 
-    //float interpolated_z = p0.z * weights.x + p1.z * weights.y + p2.z * weights.z;
-    //interpolated_z *= one_over_one_over_w;
+    // Z can be found in multiple ways. From W. From barycentric lerp. From a plane equation at x*a + y*b + c
+    float interpolated_z;
+    if(0)
+    {
+        interpolated_z = p0.z * weights.x + p1.z * weights.y + p2.z * weights.z;
+        //interpolated_z *= one_over_one_over_w;
 
-    // Subtract 1 from W since W goes from 1.0 to 0.0, and we want 0-1
-    //float interpolated_z = 1.0f - (one_over_w*rlen);
-    float interpolated_z = 1.0f - one_over_w;
+        // Subtract 1 from W since W goes from 1.0 to 0.0, and we want 0-1
+        interpolated_z = 1.0f - interpolated_z;
+    } else {
+        interpolated_z = 1.0f - one_over_w;
+        //float interpolated_z = 1.0f - (one_over_w*rlen);
+    }
+
+
 
     const float EPS = 0.0001f;
     if ( normalized_weights.x < -EPS || normalized_weights.y < -EPS || normalized_weights.z < -EPS)

@@ -68,18 +68,8 @@ void setup(const char* mesh_file, const char* texture_file) {
     render_method = RENDER_WIRE;
     cull_method = CULL_BACKFACE;
 
-    float aspect_y = (float)get_window_height() / (float)get_window_width();
-    float aspect_x = (float)get_window_width() / (float)get_window_height();
-    float fov_y = PI / 3.0; // the same as 180/3, or 60deg
-    float fov_x = atan(tan(fov_y / 2.f) * aspect_x) * 2.f;
-
-
-    uniforms.projection_matrix = mat4_make_perspective(fov_y, aspect_y, z_near, z_far);
     camera.position = (vec3_t){0,0,0};
-    init_frustum_planes(fov_x, fov_y, z_near, z_far);//, frustum_planes);
 
-    //mesh = load_cube_mesh_data();
-    mesh = load_obj_file_data(mesh_file);
     load_png_texture_data(texture_file);
 }
 
@@ -524,6 +514,7 @@ void render(void) {
     freeTris();
 
     moveto(10,10);
+
     gprintf("vertexTime:%d, my func: %d, pikuma: %d. ms/ms2=%f\n", vertex_time, time1, time2, (double)timediff);
     gprintf("frame %d, fps:%d, culled:%d, trisRender:%d\n", numframes, frames_per_second, num_culled, num_triangles_to_render );
     gprintf("1,2,3,4,5,6, 1:wire points, 2:wire, 3:fill 4:fill wire, 5:tex, 6:tex wire\n");
@@ -537,6 +528,8 @@ void render(void) {
     gprintf("num_cull_near=%d, far=%d, xy:%d\n", num_cull_near, num_cull_far, num_cull_xy);
     gprintf("num_cull_few=%d, many:%d\n", num_cull_few, num_cull_many);
     gprintf("num_cull_backface=%d, num_cull_degenerate(after clip)=%d\n", num_cull_backface, num_cull_degenerate);
+
+    gprintf("l=%d, r=%d, t:%d, b:%d, n:%d, f:%d\n", cull_left, cull_right, cull_top, cull_bottom, cull_near, cull_far);
 
 
     render_color_buffer();
@@ -566,6 +559,9 @@ int main(int argc, char *argv[])
         }
     }
 
+    //mesh = load_cube_mesh_data();
+    mesh = load_obj_file_data(mesh_file);
+
     SDL_Log("try to load %s and %s", mesh_file, texture_file);
 
     is_running = init_window();
@@ -577,7 +573,23 @@ int main(int argc, char *argv[])
         process_input();
         update();
         vertex_time_start = SDL_GetTicks();
-        vertexShading(mesh, uniforms.model_matrix, uniforms.view_matrix, uniforms.projection_matrix);
+
+
+        float aspect_y = (float)get_window_height() / (float)get_window_width();
+        float aspect_x = (float)get_window_width() / (float)get_window_height();
+        float fov_y = PI / 3.0; // the same as 180/3, or 60deg
+        float fov_x = atan(tan(fov_y / 2.f) * aspect_x) * 2.f;
+        uniforms.projection_matrix = mat4_make_perspective(fov_y, aspect_y, z_near, z_far);
+        if (0)
+        {
+            init_frustum_planes(fov_x, fov_y, z_near, z_far);//, frustum_planes);
+            vertexShading(mesh, uniforms.model_matrix, uniforms.view_matrix, uniforms.projection_matrix);
+        }
+        else {
+            init_frustum_planes_ndc();
+            vertexShading2(mesh, uniforms.model_matrix, uniforms.view_matrix, uniforms.projection_matrix);
+        }
+
         vertex_time_end = SDL_GetTicks();
         render();
     }
