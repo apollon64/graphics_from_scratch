@@ -120,39 +120,21 @@ void process_input(void) {
                 camera.position.z -= 0.5f;
 
 
-
+        case SDL_TEXTINPUT:
 
             if (event.key.keysym.sym == SDLK_c)
             {
-                cull_method = CULL_BACKFACE;
-                SDL_Log("cull back\n");
+                cull_method = cull_method == CULL_BACKFACE ? CULL_NONE : CULL_BACKFACE;
             }
-            if (event.key.keysym.sym == SDLK_d)
-            {
-                cull_method = CULL_NONE;
-                SDL_Log("cull off\n");
-            }
-            if (event.key.keysym.sym == SDLK_z)
-            {
-                sort_faces_by_z_enable = true;
-                SDL_Log("sort by z ON\n");
-            }
-            if (event.key.keysym.sym == SDLK_x)
-            {
-                sort_faces_by_z_enable = false;
-                SDL_Log("sort by z off\n");
-            }
-            if (event.key.keysym.sym == SDLK_n)
-                display_normals_enable = true;
+            if (event.key.keysym.sym == SDLK_z) sort_faces_by_z_enable = !sort_faces_by_z_enable;
+            if (event.key.keysym.sym == SDLK_n) display_normals_enable = true;
 
-            if (event.key.keysym.sym == SDLK_t)
+            if (event.key.keysym.sym == SDLK_t) draw_triangles_torb = !draw_triangles_torb;
             {
-                SDL_Log("enable torb\n");
                 draw_triangles_torb = true;
             }
             if (event.key.keysym.sym == SDLK_r)
             {
-                SDL_Log("disable torb\n");
                 draw_triangles_torb = false;
             }
             break;
@@ -266,26 +248,30 @@ void update(void) {
     //mesh.rotation.y = -M_PI;
     //mesh.rotation.z = 0;
 
-    //mesh.translation.x = 0;
-    static float time = 0.0f;
-    static float dir = 1.0f;
-    //mesh.translation.y = smoothstep_inv(-1, 1, fmod(time, 1.0f) );
-    //mesh.translation.y = smoothstep_inv(1, -1, time );
-
-    if (time > 1.0)
+    if(0)//animation
     {
-        time = 1;
-        dir *= -1;
-    }
+        //mesh.translation.x = 0;
+        static float time = 0.0f;
+        static float dir = 1.0f;
+        //mesh.translation.y = smoothstep_inv(-1, 1, fmod(time, 1.0f) );
+        //mesh.translation.y = smoothstep_inv(1, -1, time );
 
-    if (time < 0.0)
-    {
-        time = 0;
-        dir *= -1;
+        if (time > 1.0)
+        {
+            time = 1;
+            dir *= -1;
+        }
+
+        if (time < 0.0)
+        {
+            time = 0;
+            dir *= -1;
+        }
+        time += dir * 0.02;
+        mesh.scale.y = 1.0 + smoothstep_inv(0.0, -0.6, 0.2 + .8*time );
     }
-    time += dir * 0.02;
     mesh.translation.z = 3.5f + mouse.z;
-    mesh.scale.y = 1.0 + smoothstep_inv(0.0, -0.6, 0.2 + .8*time );
+
 
 
     // Initialize the target looking at the positive z-axis
@@ -348,18 +334,12 @@ void draw_list_of_triangles(int option)
 {
     int num_tris = getNumTris();
     uint32_t color = packColor(255,255,255);
-    //if (!mouse.left)
     for (int i = 0; i < num_tris; i++) {
         triangle_t triangle = get_triangles_to_render()[i];
 
         // Draw filled triangle
-        if (render_method == RENDER_FILL_TRIANGLE || render_method == RENDER_FILL_TRIANGLE_WIRE) {
-
-            //float z = triangle.z <= 0.f ? 0.01f : triangle.z;
-            //float c = 255-255/5.f*z;
-            //c = c > 255 ? 255.f : c;
-            //c = c < 0 ? 0.0f : c;
-            //triangle.colors
+        if (render_method == RENDER_FILL_TRIANGLE || render_method == RENDER_FILL_TRIANGLE_WIRE)
+        {
             light.direction = vec3_sub(light.position, triangle.center );
             vec3_normalize(&light.direction);
 
@@ -373,7 +353,7 @@ void draw_list_of_triangles(int option)
             uint32_t colors[3] = {color_lit,color_lit,color_lit};
 
             draw_triangle(
-                triangle.points[0].x, triangle.points[0].y, triangle.points[0].z, triangle.points[0].w,// vertex A
+                triangle.points[0].x, triangle.points[0].y, triangle.points[0].z, triangle.points[0].w, // vertex A
                 triangle.points[1].x, triangle.points[1].y, triangle.points[1].z, triangle.points[1].w, // vertex B
                 triangle.points[2].x, triangle.points[2].y, triangle.points[2].z, triangle.points[2].w, // vertex C
                 colors
@@ -381,13 +361,8 @@ void draw_list_of_triangles(int option)
         }
 
         // Draw filled triangle
-        if (render_method == RENDER_TEXTURED || render_method == RENDER_TEXTURED_WIRE) {
-
-            //float z = triangle.z <= 0.f ? 0.01f : triangle.z;
-            //float c = 255-255/5.f*z;
-            //c = c > 255 ? 255.f : c;
-            //c = c < 0 ? 0.0f : c;
-            //triangle.colors
+        if (render_method == RENDER_TEXTURED || render_method == RENDER_TEXTURED_WIRE)
+        {
             light.direction = vec3_sub(light.position, triangle.center );
             vec3_normalize(&light.direction);
 
@@ -413,20 +388,18 @@ void draw_list_of_triangles(int option)
 
             if (option==0)
             {
-                //texture_t texture = {.texels = (uint8_t*)&REDBRICK_TEXTURE[0], .width=64, .height=64};
                 texture_t texture = {.texels = (uint8_t*)&mesh_texture[0], .width=texture_width, .height=texture_height};
                 draw_triangle_textured(vertices[0], vertices[1], vertices[2], &texture, colors, triangle.area2);
             }
             else
             {
-                //texture_t texture = {.texels = (uint8_t*)&mesh_texture[0], .width=texture_width, .height=texture_height};
                 draw_triangle_textured_p(vertices[0], vertices[1], vertices[2], mesh_texture);
             }
         }
 
 
         // Draw triangle wireframe
-        if (render_method == RENDER_WIRE ||
+        if (    render_method == RENDER_WIRE ||
                 render_method == RENDER_WIRE_VERTEX ||
                 render_method == RENDER_FILL_TRIANGLE_WIRE ||
                 render_method == RENDER_TEXTURED_WIRE
@@ -462,20 +435,18 @@ void render(void) {
     circle(mouse.x, mouse.y, 10 + draw_triangles_torb*10.f);
 
     int ms = SDL_GetTicks();
-    if (draw_triangles_torb) draw_list_of_triangles(0);
+    if (draw_triangles_torb)
+        draw_list_of_triangles(0);
+    else
+        draw_list_of_triangles(1);
     int ms1 = SDL_GetTicks();
-    if (!draw_triangles_torb) draw_list_of_triangles(1);
-    int ms2 = SDL_GetTicks();
 
     int vertex_time = vertex_time_end - vertex_time_start;
+    int raster_time = ms1 - ms;
     int num_triangles_to_render = getNumTris();
 
     static int numframes=0;
     numframes++;
-    int time1 = ms1 - ms;
-    int time2 = ms2 - ms;
-    float timediff = 0.f;
-    if (time2>0 && time1>0) timediff = time1/(float)time2;
 
     static int frames_per_second = 0;
     static int old_time = 0;
@@ -515,7 +486,7 @@ void render(void) {
 
     moveto(10,10);
 
-    gprintf("vertexTime:%d, my func: %d, pikuma: %d. ms/ms2=%f\n", vertex_time, time1, time2, (double)timediff);
+    gprintf("vertexTime:%d, RasterTime:%d\n", vertex_time, raster_time);
     gprintf("frame %d, fps:%d, culled:%d, trisRender:%d\n", numframes, frames_per_second, num_culled, num_triangles_to_render );
     gprintf("1,2,3,4,5,6, 1:wire points, 2:wire, 3:fill 4:fill wire, 5:tex, 6:tex wire\n");
     gprintf("c - cull_method=%d\n", cull_method);
@@ -580,7 +551,7 @@ int main(int argc, char *argv[])
         float fov_y = PI / 3.0; // the same as 180/3, or 60deg
         float fov_x = atan(tan(fov_y / 2.f) * aspect_x) * 2.f;
         uniforms.projection_matrix = mat4_make_perspective(fov_y, aspect_y, z_near, z_far);
-        if (0)
+        if (draw_triangles_torb == false)
         {
             init_frustum_planes(fov_x, fov_y, z_near, z_far);//, frustum_planes);
             vertexShading(mesh, uniforms.model_matrix, uniforms.view_matrix, uniforms.projection_matrix);

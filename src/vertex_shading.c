@@ -8,6 +8,7 @@
 
 #include <stddef.h> // NULL
 #include <math.h>
+#include <assert.h>
 
 #define CLIP_LEFT   (1<<0)
 #define CLIP_RIGHT  (1<<1)
@@ -314,7 +315,7 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
                 transformed_and_clipped_vertices[2] = polygon.vertices[tri+2];
 
                 triangle_t projected_triangle;
-                projected_triangle.z = 0.f;
+                projected_triangle.z = 0.f;// Z sort
                 for (int j=0; j<3; j++)
                 {
                     vec4_t projected_point = transformed_and_clipped_vertices[j];
@@ -380,6 +381,7 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
         } else {
             triangle_t projected_triangle;
 
+            projected_triangle.z = 0.f; // Zsort
             for (int j=0; j<3; j++)
             {
                 projected_triangle.points[j] = to_screen_space(transformed_vertices[j]);
@@ -402,6 +404,7 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
                 continue;
             }
             projected_triangle.area2 = area2;
+            assert(area2>0.0f);
             projected_triangle.center = center;
             projected_triangle.normal = face_normal;
 
