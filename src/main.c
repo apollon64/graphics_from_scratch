@@ -60,6 +60,13 @@ mouse_t mouse;
 mesh_t mesh;
 
 void setup(const char* mesh_file, const char* texture_file) {
+
+#if defined(_OPENMP)
+   printf("Hello OPENMP world\n");
+#else
+    printf("Hello regular world\n");
+#endif
+
     //stb__sbgrow(triangles_to_render,1024*8);
 
     memset(&mouse,0,sizeof(mouse));
@@ -130,9 +137,6 @@ void process_input(void) {
             if (event.key.keysym.sym == SDLK_n) display_normals_enable = true;
 
             if (event.key.keysym.sym == SDLK_t) draw_triangles_torb = !draw_triangles_torb;
-            {
-                draw_triangles_torb = true;
-            }
             if (event.key.keysym.sym == SDLK_r)
             {
                 draw_triangles_torb = false;
@@ -270,12 +274,12 @@ void update(void) {
         time += dir * 0.02;
         mesh.scale.y = 1.0 + smoothstep_inv(0.0, -0.6, 0.2 + .8*time );
     }
-    mesh.translation.z = 3.5f + mouse.z;
+    mesh.translation.z = -3.5f + mouse.z;
 
 
 
     // Initialize the target looking at the positive z-axis
-    vec3_t target = { 0, 0, 1 };
+    vec3_t target = { 0, 0, -1 };
     mat4_t camera_yaw_rotation = mat4_make_rotation_y(0);//camera.yaw);
     camera.direction = vec3_from_vec4(mat4_mul_vec4(camera_yaw_rotation, vec4_from_vec3(target)));
 
@@ -319,7 +323,7 @@ void update(void) {
     //translation_matrix = mat4_make_translation(0,0,-6);
     //light_world_matrix = mat4_mul_mat4(translation_matrix, light_world_matrix);
     //light_world_matrix = mat4_mul_mat4(light_rotation_matrix_y, light_world_matrix);
-    translation_matrix = mat4_make_translation(0,0,-5);
+    translation_matrix = mat4_make_translation(0,0,5);
     light_world_matrix = mat4_mul_mat4(translation_matrix, light_world_matrix);
 
     light.position = vec3_from_vec4( mat4_mul_vec4(light_world_matrix, light.position_proj) );
@@ -557,7 +561,6 @@ int main(int argc, char *argv[])
             vertexShading(mesh, uniforms.model_matrix, uniforms.view_matrix, uniforms.projection_matrix);
         }
         else {
-            init_frustum_planes_ndc();
             vertexShading2(mesh, uniforms.model_matrix, uniforms.view_matrix, uniforms.projection_matrix);
         }
 

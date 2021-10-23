@@ -10,12 +10,12 @@
 #include <math.h>
 #include <assert.h>
 
-#define CLIP_LEFT   (1<<0)
-#define CLIP_RIGHT  (1<<1)
-#define CLIP_BOTTOM (1<<2)
-#define CLIP_TOP    (1<<3)
-#define CLIP_NEAR   (1<<4)
-#define CLIP_FAR    (1<<5)
+#define CLIP_POS_X 1
+#define CLIP_NEG_X 2
+#define CLIP_POS_Y 4
+#define CLIP_NEG_Y 8
+#define CLIP_POS_Z 16
+#define CLIP_NEG_Z 32
 
 static triangle_t *triangles_to_render = NULL;
 static line_t* lines_to_render = NULL;
@@ -88,8 +88,34 @@ vec4_t to_screen_space(vec4_t v)
     v.x += (pk_window_width() / 2.0f);
     v.y += (pk_window_height() / 2.0f);
 
-    snap(&v.x);
-    snap(&v.y);
+    //snap(&v.x);
+    //snap(&v.y);
+    int error = 0;
+    if(v.x < 0)
+    {
+        error=1;
+
+    }
+    if(v.x < 0)
+    {
+        error=1;
+
+    }
+    if(v.x > pk_window_width()-1)
+    {
+        error=1;
+
+    }
+    if(v.y > pk_window_height()-1)
+    {
+        error=1;
+
+    }
+    if (error)
+    {
+
+    }
+
 
     return v;
 }
@@ -160,28 +186,30 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
     int n_positions = array_length(mesh.vertpack);
     vec4_t* shaded_positions = NULL;
     uint8_t* clip_codes = NULL;
-    //array_hold(clip_codes, n_positions, sizeof(uint8_t) );
+    clip_codes = array_hold(clip_codes, n_positions, sizeof(clip_codes[0]) );
+    shaded_positions = array_hold(shaded_positions, n_positions, sizeof(shaded_positions[0]) );
 
     // Vertex Transform is simply multiply by MVP and divide by W (project)
+
     for (int i = 0; i < n_positions; i++)
     {
         // Transform our model space xyz to clipcoords
         vec4_t transformed_vertex = mat4_mul_vec4(mvp,  vec4_from_vec3(mesh.vertpack[i].p));
 
         // Dont divide by W yet, since we want to clip in clipcoords
-        float w1 = transformed_vertex.w * (1.0f + 1e-5f);
+        float w1 = transformed_vertex.w;
 
         // Bitmask of which planes vertex is on. 0 if inside all planes.
         uint8_t clip_code =
-                (transformed_vertex.x < -w1)<<1 |
-                (transformed_vertex.x > +w1)<<2 |
-                (transformed_vertex.y < -w1)<<3 |
-                (transformed_vertex.y > +w1)<<4 |
-                (transformed_vertex.z < -w1)<<5 |
-                (transformed_vertex.z > +w1)<<6;
+                (transformed_vertex.x <= -w1)<<0u |
+                (transformed_vertex.x >= +w1)<<1u |
+                (transformed_vertex.y <= -w1)<<2u |
+                (transformed_vertex.y >= +w1)<<3u |
+                (transformed_vertex.z <= -w1)<<4u |
+                (transformed_vertex.z >= +w1)<<5u;
 
-        array_push(clip_codes, clip_code);
-        array_push(shaded_positions, transformed_vertex);
+        clip_codes[i] = clip_code;
+        shaded_positions[i] = transformed_vertex;
     }
 
     int n_elems = array_length(mesh.indices);
@@ -193,19 +221,19 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
         int idx1 = mesh.indices[i+1];
         int idx2 = mesh.indices[i+2];
 
-        // Find the combined clip by OR-ing all 3 verex clips together
+        // Find the combined clip by OR-ing all 3 vertex clips together
         U8 combined_clip = clip_codes[idx0] | clip_codes[idx1] | clip_codes[idx2];
         U8 combined_clip_and = clip_codes[idx0] & clip_codes[idx1] & clip_codes[idx2]; // bit only set if all 3 have it
 
         if (combined_clip)
         {
             // If all 3 verts are outside one clip plane, we can completely discard this triangle
-            if (combined_clip_and & CLIP_LEFT) { cull_left++; continue;}
-            if (combined_clip_and & CLIP_RIGHT) { cull_right++; continue;}
-            if (combined_clip_and & CLIP_BOTTOM) { cull_bottom++; continue;}
-            if (combined_clip_and & CLIP_TOP) { cull_top++; continue;}
-            if (combined_clip_and & CLIP_NEAR) { cull_near++; continue;}
-            if (combined_clip_and & CLIP_FAR) { cull_far++; continue;}
+            if (combined_clip_and & CLIP_POS_X) { cull_left++; continue;}
+            if (combined_clip_and & CLIP_NEG_X) { cull_right++; continue;}
+            if (combined_clip_and & CLIP_POS_Y) { cull_bottom++; continue;}
+            if (combined_clip_and & CLIP_NEG_Y) { cull_top++; continue;}
+            if (combined_clip_and & CLIP_POS_Z) { cull_near++; continue;}
+            if (combined_clip_and & CLIP_NEG_Z) { cull_far++; continue;}
         }
 
 
@@ -215,19 +243,16 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
             shaded_positions[idx1],
             shaded_positions[idx2],
         };
-
         int num_zero_w = 0;
         for (int j = 0; j < 3; j++) {
             num_zero_w += transformed_vertices[j].w <= 0.f;
         }
-
         if (num_zero_w == 3)
         {
             num_cull_zero_area++;
             num_culled++;
             continue;
         }
-
 
         vec3_t face_vertices[3];
         face_vertices[0] = mesh.vertpack[idx0].p;
@@ -244,62 +269,27 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
         face_colors[1] = 0xFF00FF00;//vec3_to_uint32_t(mesh.colors[mesh_face.b ]);
         face_colors[2] = 0xFF0000FF;//vec3_to_uint32_t(mesh.colors[mesh_face.c ]);
 
+        vec3_t face_normal = mesh.vertpack[idx0].n;
+
         vec3_t center = {0,0,0};
         center = vec3_add(center, face_vertices[0] );
         center = vec3_add(center, face_vertices[1] );
         center = vec3_add(center, face_vertices[2] );
         center = vec3_mul(center, 1.0f / 3.0f);
 
-        // Before transforming to screen space, find area in world space
-        // Check backface culling
-        vec3_t vector_a = vec3_from_vec4(transformed_vertices[0]); /*   A   */
-        vec3_t vector_b = vec3_from_vec4(transformed_vertices[1]); /*  / \  */
-        vec3_t vector_c = vec3_from_vec4(transformed_vertices[2]); /* C---B */
-
-        // Get the vector subtraction of B-A and C-A
-        vec3_t vector_ab = vec3_sub(vector_b, vector_a);
-        vec3_t vector_ac = vec3_sub(vector_c, vector_a);
-        vec3_t transformed_normal = vec3_cross(vector_ab, vector_ac);
-        vec3_t face_normal = vec3_cross(
-                            vec3_sub(face_vertices[1],face_vertices[0]),
-                            vec3_sub(face_vertices[2],face_vertices[0])
-                        );
-        vec3_normalize(&face_normal);
-
-
-        // possibly save us some work by projecting after doing culling steps above
-        for (int j=0; j<3; j++)
-        {
-            float w = transformed_vertices[j].w;
-            if (0)
-            {
-                if (w != 0.0f)
-                {
-                    transformed_vertices[j].x /= w;
-                    transformed_vertices[j].y /= w;
-                    //transformed_vertices[j].z /= w;
-                    transformed_vertices[j].z = 1.0f / w; // Occlusion Z
-                }
-            }
-            else
-            {
-                transformed_vertices[j] = vec4_project(transformed_vertices[j]);
-            }
-        }
-
-        // Save world space triangle
-        polygon_t polygon = create_polygon_from_triangle(
-            transformed_vertices[0],
-            transformed_vertices[1],
-            transformed_vertices[2],
-            face_texcoords[0],
-            face_texcoords[1],
-            face_texcoords[2]
-        );
 
         if (combined_clip)
         {
-            clip_polygon(&polygon);
+            polygon_t polygon = create_polygon_from_triangle(
+                transformed_vertices[0],
+                transformed_vertices[1],
+                transformed_vertices[2],
+                face_texcoords[0],
+                face_texcoords[1],
+                face_texcoords[2]
+            );
+
+            clip_polygon2(&polygon);
             if (polygon.num_vertices < 3)
             {
                 num_cull_few++;
@@ -318,8 +308,7 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
                 projected_triangle.z = 0.f;// Z sort
                 for (int j=0; j<3; j++)
                 {
-                    vec4_t projected_point = transformed_and_clipped_vertices[j];
-
+                    vec4_t projected_point = vec4_project(transformed_and_clipped_vertices[j]);
                     projected_point = to_screen_space(projected_point);
 
                     projected_triangle.points[j].x = projected_point.x;
@@ -330,12 +319,14 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
                     projected_triangle.z = fmax( projected_triangle.z, projected_point.z );
                 }
 
-                bool two_points_same =
-                (projected_triangle.points[0].x == projected_triangle.points[1].x && projected_triangle.points[0].y == projected_triangle.points[1].y) ||
-                (projected_triangle.points[1].x == projected_triangle.points[2].x && projected_triangle.points[1].y == projected_triangle.points[2].y) ||
-                (projected_triangle.points[0].x == projected_triangle.points[2].x && projected_triangle.points[0].y == projected_triangle.points[2].y);
+                float x0 = projected_triangle.points[0].x;
+                float x1 = projected_triangle.points[1].x;
+                float x2 = projected_triangle.points[2].x;
+                float y0 = projected_triangle.points[0].y;
+                float y1 = projected_triangle.points[1].y;
+                float y2 = projected_triangle.points[2].y;
 
-                if (two_points_same)
+                if ((x0==x1 && y0==y1) || (x1==x2 && y1==y2) || (x2==x0 && y2==y0))
                 {
                     num_cull_degenerate++;
                     //num_culled++; // Since we clipped, we may have more tris
@@ -346,16 +337,6 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
                 projected_triangle.texcoords[1] = polygon.texcoords[tri+1];
                 projected_triangle.texcoords[2] = polygon.texcoords[tri+2];
 
-                /*
-                vec2_t vec1 = vec2_sub(
-                vec2_from_vec4( projected_triangle.points[1] ),
-                vec2_from_vec4( projected_triangle.points[2] ) );
-                vec2_t vec2 = vec2_sub(
-                vec2_from_vec4( projected_triangle.points[0] ),
-                vec2_from_vec4( projected_triangle.points[2] ) );
-
-                float area2 = ((vec1.x * vec2.y) - (vec1.y * vec2.x));
-                */
                 vec2_t a = vec2_from_vec4( projected_triangle.points[0] );
                 vec2_t b = vec2_from_vec4( projected_triangle.points[1] );
                 vec2_t c = vec2_from_vec4( projected_triangle.points[2] );
@@ -384,7 +365,8 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
             projected_triangle.z = 0.f; // Zsort
             for (int j=0; j<3; j++)
             {
-                projected_triangle.points[j] = to_screen_space(transformed_vertices[j]);
+                vec4_t projected_point = vec4_project(transformed_vertices[j]);
+                projected_triangle.points[j] = to_screen_space(projected_point);
                 projected_triangle.z = fmax( projected_triangle.z, projected_triangle.points[j].z );
             }
 
@@ -409,7 +391,6 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
             projected_triangle.normal = face_normal;
 
             addTriangleToRender(projected_triangle);
-
             if (display_normals_enable)
             {
                 addLineToRender(face_normal, center, mvp);
@@ -642,11 +623,14 @@ void vertexShading(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t 
 
               }
 
-              bool two_points_same =
-                      (projected_triangle.points[0].x == projected_triangle.points[1].x && projected_triangle.points[0].y == projected_triangle.points[1].y) ||
-                      (projected_triangle.points[1].x == projected_triangle.points[2].x && projected_triangle.points[1].y == projected_triangle.points[2].y) ||
-                      (projected_triangle.points[0].x == projected_triangle.points[2].x && projected_triangle.points[0].y == projected_triangle.points[2].y);
-              if (two_points_same)
+              float x0 = projected_triangle.points[0].x;
+              float x1 = projected_triangle.points[1].x;
+              float x2 = projected_triangle.points[2].x;
+              float y0 = projected_triangle.points[0].y;
+              float y1 = projected_triangle.points[1].y;
+              float y2 = projected_triangle.points[2].y;
+
+              if ((x0==x1 && y0==y1) || (x1==x2 && y1==y2) || (x2==x0 && y2==y0))
               {
                   num_cull_degenerate++;
                   //num_culled++; // Since we clipped, we may have more tris
