@@ -57,8 +57,10 @@ mouse_t mouse;
 
 mesh_t mesh;
 mesh_t mesh_cube;
+mesh_t mesh_f22;
 texture_t texture_from_file;
 texture_t brick_tex;
+texture_t texture_f22;
 
 void setup(const char* mesh_file, const char* texture_file) {
 
@@ -77,9 +79,6 @@ void setup(const char* mesh_file, const char* texture_file) {
     cull_method = CULL_BACKFACE;
 
     camera.position = (vec3_t){0,0,0};
-
-    brick_tex = load_brick_texture();
-    texture_from_file = load_png_texture_data(texture_file);
 }
 
 uint32_t vec3_to_uint32_t(vec3_t c)
@@ -428,7 +427,7 @@ static void draw_list_of_triangles(int option, int first_triangle, int last_tria
 }
 
 void render(void) {
-    clear_color_buffer( packColor(255,0,255) );
+    clear_color_buffer( packColor(0,163,232) );
     clear_z_buffer( 1.0f );
     draw_grid();
 
@@ -444,20 +443,14 @@ void render(void) {
     int raster_time_start = SDL_GetTicks();
 
     int num_tris = getNumTris();
-    static int once=false;
 
     draw_call_t *drawcall_list = get_drawcall_list();
     int num_draws = array_length(drawcall_list);
     for(int i=0; i<num_draws; i++)
     {
-        if(!once) {
-            printf("dc %d = %p. from %d to %d \n", i, drawcall_list[i].texture->texels,  drawcall_list[i].polylist_begin, drawcall_list[i].polylist_end);
-
-        }
         assert(drawcall_list[i].polylist_end <= num_tris);
         draw_list_of_triangles( draw_triangles_torb ? 0 : 1, drawcall_list[i].polylist_begin, drawcall_list[i].polylist_end, drawcall_list[i].texture );
     }
-    if (!once) once=true;
 
     int raster_time_end = SDL_GetTicks();
 
@@ -524,11 +517,16 @@ void render(void) {
 
 void free_resources(void) {
     free_png_texture(&texture_from_file);
+    free_png_texture(&texture_f22);
+
+    free_mesh(&mesh);
+    free_mesh(&mesh_cube);
+    free_mesh(&mesh_f22);
+
     freeTris();
     free(color_buffer);
     free(z_buffer);
-    free_mesh(&mesh);
-    free_mesh(&mesh_cube);
+
 }
 
 int main(int argc, char *argv[])
@@ -550,6 +548,11 @@ int main(int argc, char *argv[])
     //mesh = load_cube_mesh_data();
     mesh = load_obj_file_data(mesh_file);
     mesh_cube = load_obj_file_data("./assets/cube.obj");
+    mesh_f22 = load_obj_file_data("./assets/f22.obj");
+
+    brick_tex = load_brick_texture();
+    texture_from_file = load_png_texture_data(texture_file);
+    texture_f22 = load_png_texture_data("./assets/f22.png");
 
     SDL_Log("try to load %s and %s", mesh_file, texture_file);
 
@@ -583,12 +586,26 @@ int main(int argc, char *argv[])
         mvp = mat4_mul_mat4(mvp, uniforms.model_matrix);
         addDrawcall(mesh, &texture_from_file, mvp);
 
-        int n = 2;
+
+        mat4_t model_matrix;// = //mat4_make_translation(x,-5,-20+z);
+        float time = (float)klock();
+        float radi = 4;
+        vec3_t f22_pos = { cosf(time)*radi, cosf(time*2), sinf(time)*radi };
+        //vec3_t f22_dir = { cosf(time), 0, sinf(time) };
+        //vec3_t f22_up = { 0,1,0 };
+        model_matrix = mat4_make_translation(f22_pos.x, f22_pos.y, f22_pos.z);
+        model_matrix = mat4_mul_mat4(model_matrix, mat4_make_rotation_y(-time - .5*PI) );
+        model_matrix = mat4_mul_mat4(model_matrix, mat4_make_rotation_x(time*2) );
+        mvp = mat4_mul_mat4(uniforms.projection_matrix, uniforms.view_matrix);
+        mvp = mat4_mul_mat4(mvp, model_matrix);
+        addDrawcall(mesh_f22, &texture_f22, mvp);
+
+        int n = 20;
         for(int i=0; i<n; i++)
             for(int j=0; j<n; j++)
         {
-                float x = 25*(-.5+i/(float)n);
-                float z = 25*(-.5+j/(float)n);
+                float x = n*3*(-.5+i/(float)n);
+                float z = n*3*(-.5+j/(float)n);
                 mat4_t model_matrix = mat4_make_translation(x,-5,-20+z);
                 mat4_t mvp = mat4_mul_mat4(uniforms.projection_matrix, uniforms.view_matrix);
                 mvp = mat4_mul_mat4(mvp, model_matrix);

@@ -140,20 +140,21 @@ static void interpolate_uv(int x, int y,
     normalized_weights.y = weights.y * rlen;
     normalized_weights.z = weights.z * rlen;
     weights = normalized_weights;
-
-    float u = p0.u * weights.x + p1.u * weights.y + p2.u * weights.z;
-    float v = p0.v * weights.x + p1.v * weights.y + p2.v * weights.z;
     // Also interpolate the value of 1/w for the current pixel
     float one_over_w = p0.w * weights.x + p1.w * weights.y + p2.w * weights.z;
-    float one_over_one_over_w = 1.0f  / one_over_w;
-    u *= one_over_one_over_w;
-    v *= one_over_one_over_w;
+
+//    U8 red =   (U8)clampf( weights.x * 255, 0.0, 255.0);
+//    U8 green = (U8)clampf( weights.y * 255 ,0.0, 255.0);
+//    U8 blue =  (U8)clampf( weights.z * 255 ,0.0, 255.0);
+//    uint32_t color = packColor(red,green,blue);
+//    setpix(x,y,color);
+//    return;
 
     // Z can be found in multiple ways. From W. From barycentric lerp. From a plane equation at x*a + y*b + c
     float interpolated_z;
     if(0)
     {
-        interpolated_z = p0.z * weights.x + p1.z * weights.y + p2.z * weights.z;
+        //interpolated_z = p0.z * weights.x + p1.z * weights.y + p2.z * weights.z;
         //interpolated_z *= one_over_one_over_w;
 
         // Subtract 1 from W since W goes from 1.0 to 0.0, and we want 0-1
@@ -181,15 +182,20 @@ static void interpolate_uv(int x, int y,
     float* z_buffer = pk_z_buffer();
     float buffer_z = z_buffer[(pk_window_width() * y) + x];
     if ( interpolated_z < buffer_z ) {
+
+        // Doing UV interpolation only if we pass Z test helps a lot!
+        // We could avoid Z interpolation also if we saved Z as a plane or did interpolation in rasterizer/scanline
+        float u = p0.u * weights.x + p1.u * weights.y + p2.u * weights.z;
+        float v = p0.v * weights.x + p1.v * weights.y + p2.v * weights.z;
+
+        float one_over_one_over_w = 1.0f  / one_over_w;
+        u *= one_over_one_over_w;
+        v *= one_over_one_over_w;
+
         draw_texel(x, y, u, v, texture);
         z_buffer[(pk_window_width() * y) + x] = interpolated_z;
     }
-    /*uint32_t color = 0xFF000000;
-    U8 red =   (U8)clampf( 255*rweights.x,0,255) & 0xFF;
-    U8 green = (U8)clampf( 255*rweights.y,0,255) & 0xFF;
-    U8 blue =  (U8)clampf( 255*rweights.z,0,255) & 0xFF;
-    color = (255u << 24) | (red<<16) | (green<<8) | blue;
-    setpix(x,y,color);*/
+
 }
 
 
@@ -405,23 +411,23 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
         // No height. return early
         return;
     }
-    vec2_t a = vec2_sub( (vec2_t) {
-        p1.x,p1.y
-    }, (vec2_t) {
-        p2.x,p2.y
-    } );
-    vec2_t b = vec2_sub( (vec2_t) {
-        p0.x,p0.y
-    }, (vec2_t) {
-        p2.x,p2.y
-    } );
-    float area_triangle_abc = .5f * fabsf((a.x * b.y) - (a.y * b.x));
+//    vec2_t a = vec2_sub( (vec2_t) {
+//        p1.x,p1.y
+//    }, (vec2_t) {
+//        p2.x,p2.y
+//    } );
+//    vec2_t b = vec2_sub( (vec2_t) {
+//        p0.x,p0.y
+//    }, (vec2_t) {
+//        p2.x,p2.y
+//    } );
+//    float area_triangle_abc = .5f * fabsf((a.x * b.y) - (a.y * b.x));
 
-    if ( area_triangle_abc <= 1.0f / 256.f)
-    {
-        //printf("tiny area. %f, area2/2=%f\n", area_triangle_abc, .5f * area2);
-        return;
-    }
+//    if ( area_triangle_abc <= 1.0f / 256.f)
+//    {
+//        //printf("tiny area. %f, area2/2=%f\n", area_triangle_abc, .5f * area2);
+//        return;
+//    }
 
     p0.v = 1.0f - p0.v;
     p1.v = 1.0f - p1.v;

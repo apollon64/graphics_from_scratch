@@ -16,5 +16,6 @@ void render_color_buffer(void);
 void destroy_window(void);
 int get_window_width();
 int get_window_height();
+double klock();
 
 #endif

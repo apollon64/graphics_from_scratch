@@ -110,3 +110,8 @@ int get_window_height()
 {
     return window_height;
 }
+
+double klock()
+{
+    return SDL_GetTicks() / 1000.0;
+}
