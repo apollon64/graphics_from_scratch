@@ -198,7 +198,7 @@ static vec3_t barycentric_weights(vec2_t a, vec2_t b, vec2_t c, vec2_t p) {
 // Function to draw the textured pixel at position x and y using interpolation
 ///////////////////////////////////////////////////////////////////////////////
 void draw_texel(
-    int x, int y, uint32_t* texture,
+    int x, int y, texture_t texture,
     vec4_t point_a, vec4_t point_b, vec4_t point_c,
     tex2_t a_uv, tex2_t b_uv, tex2_t c_uv
 ) {
@@ -283,13 +283,13 @@ void draw_texel(
         interpolated_v /= interpolated_reciprocal_w;
 
         // Map the UV coordinate to the full texture width and height
-        int tex_x = abs((int)(interpolated_u * texture_width));
-        int tex_y = abs((int)(interpolated_v * texture_height));
+        int tex_x = abs((int)(interpolated_u * texture.width));
+        int tex_y = abs((int)(interpolated_v * texture.height));
         // Wrap needed for certain textures...
-        tex_x &= (texture_width-1);
-        tex_y &= (texture_height-1);
-        bool oob = tex_x < 0 || tex_y < 0 || tex_x > (texture_width-1) || tex_y > (texture_height-1);
-        uint32_t color = oob ? 0xFF880099 : texture[(texture_width * tex_y) + tex_x];
+        tex_x &= (texture.width-1);
+        tex_y &= (texture.height-1);
+        bool oob = tex_x < 0 || tex_y < 0 || tex_x > (texture.width-1) || tex_y > (texture.height-1);
+        uint32_t color = oob ? 0xFF880099 : texture.texels[(texture.width * tex_y) + tex_x];
         /*U8 red = (U8)(alpha*255.f) & 0xFF;
         U8 green = (U8)(beta*255.f) & 0xFF;
         U8 blue = (U8)(gamma*255.f) & 0xFF;
@@ -300,7 +300,7 @@ void draw_texel(
 
 }
 
-void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, uint32_t *texture) //, uint32_t* colors, float area2)
+void draw_triangle_textured_p(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2, texture_t texture) //, uint32_t* colors, float area2)
 {
     float fx0 = p0.x;
     float fy0 = p0.y;

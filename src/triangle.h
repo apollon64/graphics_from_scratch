@@ -11,6 +11,9 @@ typedef struct {
     int texcoord_a;
     int texcoord_b;
     int texcoord_c;
+    int normal_a;
+    int normal_b;
+    int normal_c;
 } face_t;
 
 typedef struct {

@@ -10,16 +10,13 @@ typedef struct {
 } tex2_t;
 
 typedef struct {
-    uint8_t *texels;
+    void* upng_handle;
+    uint32_t *texels;
     int width;
     int height;
 } texture_t;
 
-extern int texture_width;
-extern int texture_height;
-extern uint32_t* mesh_texture;
-extern const uint8_t REDBRICK_TEXTURE[];
-
-void load_png_texture_data(const char* filename);
-void free_png_texture();
+texture_t load_brick_texture();
+texture_t load_png_texture_data(const char* filename);
+void free_png_texture(texture_t* t);
 #endif

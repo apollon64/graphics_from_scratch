@@ -103,7 +103,7 @@ static void interpolate_color(int x, int y,
     setpix(x,y,color);*/
 }
 
-static inline void draw_texel(int x, int y, float u, float v, texture_t* texture)
+static /*inline*/ void draw_texel(int x, int y, float u, float v, texture_t* texture)
 {
     // Map the UV coordinate to the full texture width and height
     int tex_x = abs((int)(u * texture->width));
@@ -114,15 +114,12 @@ static inline void draw_texel(int x, int y, float u, float v, texture_t* texture
     int tex_idx = tex_y * texture->width + tex_x;
     assert(tex_idx >= 0 && "tex idx less 0");
     assert(tex_idx <= texture->width*texture->height*4 && "tex idx oob");
-
-    U8 tex_r = texture->texels[ 4*(tex_idx)+0];
-    U8 tex_g = texture->texels[ 4*(tex_idx)+1];
-    U8 tex_b = texture->texels[ 4*(tex_idx)+2];
+    uint32_t texel = texture->texels[(texture->width * tex_y) + tex_x];
 
     //uint32_t color = 0xFFFFFFFF;
     //uint32_t texel_lit = mix_colors( packColor(tex_r, tex_g, tex_b), color, .5f);
     //setpix(x,y, texel_lit);
-    setpix_no_bound_check(x,y, packColor(tex_r, tex_g, tex_b) );
+    setpix_no_bound_check(x, y, texel);
     //setpix(x,y, packColor(u*255, v*255, (1-u-v)*255 ) );
 }
 
@@ -301,6 +298,10 @@ void draw_triangle(
             }
 
             for (int x = x_start; x < x_end; x++) {
+                if (x < 0) continue;
+                if (y < 0) continue;
+                if (x >= pk_window_width()) continue;
+                if (y >= pk_window_height()) continue;
                 interpolate_color( x, y, coeffA, coeffB, coeffC, w0, w1, w2, colors);
             }
         }
@@ -326,6 +327,10 @@ void draw_triangle(
             }
 
             for (int x = x_start; x < x_end; x++) {
+                if (x < 0) continue;
+                if (y < 0) continue;
+                if (x >= pk_window_width()) continue;
+                if (y >= pk_window_height()) continue;
                 interpolate_color( x, y, coeffA, coeffB, coeffC, w0, w1, w2, colors);
             }
         }
@@ -475,8 +480,10 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
 
             for (int x = x_start; x < x_end; x++) {
                 // Draw our pixel with the color that comes from the texture
-                //setpix(x,y,0xFF0000FF);
-                //draw_texel(x, y, texture, point_a, point_b, point_c, a_uv, b_uv, c_uv);
+                if (x < 0) continue;
+                if (y < 0) continue;
+                if (x >= pk_window_width()) continue;
+                if (y >= pk_window_height()) continue;
                 interpolate_uv( x, y, coeffA, coeffB, coeffC, p0, p1, p2, texture);
             }
         }
@@ -503,7 +510,10 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
 
             for (int x = x_start; x < x_end; x++) {
                 // Draw our pixel with the color that comes from the texture
-                //draw_texel(x, y, texture, point_a, point_b, point_c, a_uv, b_uv, c_uv);
+                if (x < 0) continue;
+                if (y < 0) continue;
+                if (x >= pk_window_width()) continue;
+                if (y >= pk_window_height()) continue;
                 interpolate_uv( x, y, coeffA, coeffB, coeffC, p0, p1, p2, texture);
             }
         }

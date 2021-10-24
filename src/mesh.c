@@ -30,51 +30,14 @@ static mesh_t init_mesh()
     return mesh;
 }
 
-
-vec3_t cube_vertices[N_CUBE_VERTICES] = {
-    { .x = -1, .y = -1, .z = -1 }, // 1
-    { .x = -1, .y =  1, .z = -1 }, // 2
-    { .x =  1, .y =  1, .z = -1 }, // 3
-    { .x =  1, .y = -1, .z = -1 }, // 4
-    { .x =  1, .y =  1, .z =  1 }, // 5
-    { .x =  1, .y = -1, .z =  1 }, // 6
-    { .x = -1, .y =  1, .z =  1 }, // 7
-    { .x = -1, .y = -1, .z =  1 }  // 8
-};
-
-face_t cube_faces[N_CUBE_FACES] = {
-    // front
-    { .a = 1, .b = 2, .c = 3 },
-    { .a = 1, .b = 3, .c = 4 },
-    // right
-    { .a = 4, .b = 3, .c = 5 },
-    { .a = 4, .b = 5, .c = 6 },
-    // back
-    { .a = 6, .b = 5, .c = 7 },
-    { .a = 6, .b = 7, .c = 8 },
-    // left
-    { .a = 8, .b = 7, .c = 2 },
-    { .a = 8, .b = 2, .c = 1 },
-    // top
-    { .a = 2, .b = 7, .c = 5 },
-    { .a = 2, .b = 5, .c = 3 },
-    // bottom
-    { .a = 6, .b = 8, .c = 1 },
-    { .a = 6, .b = 1, .c = 4 }
-};
-
-mesh_t load_cube_mesh_data(void) {
-    mesh_t mesh = init_mesh();
-    for (int i = 0; i < N_CUBE_VERTICES; i++) {
-        array_push(mesh.vertices, cube_vertices[i]);
-    }
-    for (int i = 0; i < N_CUBE_VERTICES; i++) {
-        array_push(mesh.normals, cube_vertices[i]);
-    }
-    for (int i = 0; i < N_CUBE_FACES; i++) {
-        array_push(mesh.faces, cube_faces[i]);
-    }
-    return mesh;
+static mesh_vertex_t init_mesh_vertex()
+{
+    mesh_vertex_t m = {
+        .p = {0,0,0},
+        .n = {0,0,0},
+        .uv = {0,0},
+    };
+    return m;
 }
 
 int min(int a, int b) { return a < b ? a : b; }
@@ -101,16 +64,17 @@ static void deduplicate1(face_t face, mesh_t *mesh)
     // (position, normal, texturecoord) combined
     for (int i=0; i<3; i++)
     {
-        mesh_vertex_t new_vertex;
+        mesh_vertex_t new_vertex = init_mesh_vertex();
         new_vertex.p = mesh->vertices[
                 i == 0 ? face.a :
                 i == 1 ? face.b :
                          face.c];
 
-        new_vertex.n = mesh->normals[
-                i == 0 ? face.a :
-                i == 1 ? face.b :
-                         face.c];
+        if (mesh->normals) {
+            if (i==0 && face.normal_a) new_vertex.n = mesh->normals[face.normal_a];
+            if (i==1 && face.normal_b) new_vertex.n = mesh->normals[face.normal_b];
+            if (i==2 && face.normal_c) new_vertex.n = mesh->normals[face.normal_c];
+        }
 
         new_vertex.uv = mesh->texcoords[
                 i == 0 ? face.texcoord_a :
@@ -217,14 +181,18 @@ mesh_t load_obj_file_data(const char* filename) {
             vec3_t vertex;
             sscanf(line, "v %f %f %f", &vertex.x, &vertex.y, &vertex.z);
             array_push(mesh.vertices, vertex);
-            vec3_t zero = {0,0,0};
-            array_push(mesh.normals, zero );
         }
         // Texture information
         if (strncmp(line, "vt ", (size_t)3) == 0) {
             vec2_t texcoord;
             sscanf(line, "vt %f %f", &texcoord.x, &texcoord.y);
             array_push(mesh.texcoords, texcoord);
+        }
+        // Normal information
+        if (strncmp(line, "vn ", (size_t)3) == 0) {
+            vec3_t normal;
+            sscanf(line, "vn %f %f %f", &normal.x, &normal.y, &normal.z);
+            array_push(mesh.normals, normal);
         }
 
         // Face information
@@ -245,6 +213,9 @@ mesh_t load_obj_file_data(const char* filename) {
                 .texcoord_a = texture_indices[0] - 1,
                 .texcoord_b = texture_indices[1] - 1,
                 .texcoord_c = texture_indices[2] - 1,
+                .normal_a = normal_indices[0] - 1,
+                .normal_b = normal_indices[1] - 1,
+                .normal_c = normal_indices[2] - 1,
             };
 
             deduplicate1(face, &mesh);
@@ -252,38 +223,13 @@ mesh_t load_obj_file_data(const char* filename) {
         }
     }
 
-    for(int i=0; i<array_length(mesh.faces); i++)
-    {
-        face_t face = mesh.faces[i];
-        vec3_t face_normal = vec3_cross(
-                                    vec3_sub(mesh.vertices[face.b], mesh.vertices[face.a]),
-                                    vec3_sub(mesh.vertices[face.c], mesh.vertices[face.a])
-                                );
-        vec3_normalize(&face_normal);
-        mesh.normals[face.a] = face_normal;
-        mesh.normals[face.b] = face_normal;
-        mesh.normals[face.c] = face_normal;
-    }
-    for(int i=0; i<array_length(mesh.indices); i+=3)
-    {
-         int i0 = mesh.indices[i+0];
-         int i1 = mesh.indices[i+1];
-         int i2 = mesh.indices[i+2];
-        vec3_t face_normal = vec3_cross(
-                                    vec3_sub(mesh.vertpack[i1].p, mesh.vertpack[i0].p),
-                                    vec3_sub(mesh.vertpack[i2].p, mesh.vertpack[i0].p)
-                                );
-        vec3_normalize(&face_normal);
-        mesh.vertpack[i0].n = face_normal;
-        mesh.vertpack[i1].n = face_normal;
-        mesh.vertpack[i2].n = face_normal;
-    }
 
     int vertex_len = array_length(mesh.vertices);
+    int normals_len = array_length(mesh.normals);
     int texcoord_len = array_length(mesh.texcoords);
     int faces_len = array_length(mesh.faces);
     // An obj mesh may be optimized by finding vertices that are same
-    fprintf(stdout, "loaded mesh, verts:%d, texcoords:%d, faces:%d \n", vertex_len, texcoord_len, faces_len);
+    fprintf(stdout, "loaded mesh, verts:%d, normals:%d, texcoords:%d, faces:%d \n", vertex_len, normals_len, texcoord_len, faces_len);
     fclose(file);
 
     printf("the element buffer:%d and vertpack: %d\n", array_length( mesh.indices ), array_length( mesh.vertpack ) );

@@ -19,6 +19,7 @@
 
 static triangle_t *triangles_to_render = NULL;
 static line_t* lines_to_render = NULL;
+static draw_call_t* drawcall_list = NULL;
 
 triangle_t *get_triangles_to_render() { return triangles_to_render; }
 line_t* get_lines_to_render() { return lines_to_render; }
@@ -45,6 +46,8 @@ int cull_top = 0;
 int cull_near = 0;
 int cull_far = 0;
 
+//#define DYNAMIC_MEM_EACH_FRAME 1
+
 int getNumTris()
 {
 #if defined(DYNAMIC_MEM_EACH_FRAME)
@@ -59,6 +62,7 @@ void freeTris()
 #if defined(DYNAMIC_MEM_EACH_FRAME)
     array_free(triangles_to_render);
     array_free(lines_to_render);
+    array_free(drawcall_list);
 #endif
 }
 
@@ -66,15 +70,20 @@ static void clearTris()
 {
 #if defined(DYNAMIC_MEM_EACH_FRAME)
     triangles_to_render = NULL;
+    lines_to_render = NULL;
+    drawcall_list = NULL;
 #else
     // Set Stretchy Buffer size (not capacity) to zero
     if (triangles_to_render != NULL) stb__sbn(triangles_to_render)=0;
+    if (lines_to_render != NULL) stb__sbn(lines_to_render)=0;
+    if (drawcall_list != NULL) stb__sbn(drawcall_list)=0;
 #endif
 }
 
 static void snap(float *v)
 {
   *v = floorf( (*v) * 128.f)/128.f;
+    //*v = floorf( (*v) * .5)/.5;
 }
 
 vec4_t to_screen_space(vec4_t v)
@@ -88,35 +97,9 @@ vec4_t to_screen_space(vec4_t v)
     v.x += (pk_window_width() / 2.0f);
     v.y += (pk_window_height() / 2.0f);
 
-    //snap(&v.x);
-    //snap(&v.y);
-    int error = 0;
-    if(v.x < 0)
-    {
-        error=1;
-
-    }
-    if(v.x < 0)
-    {
-        error=1;
-
-    }
-    if(v.x > pk_window_width()-1)
-    {
-        error=1;
-
-    }
-    if(v.y > pk_window_height()-1)
-    {
-        error=1;
-
-    }
-    if (error)
-    {
-
-    }
-
-
+    snap(&v.x);
+    snap(&v.y);
+    // If clipping is good, x,y should be within {0,xres} and {0,yres}
     return v;
 }
 
@@ -151,16 +134,14 @@ static void addTriangleToRender(triangle_t projected_triangle)
 #endif
 }
 
-
-
-void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t projection_matrix)
+void vertexShadingInit()
 {
     clearTris();
-    // mvp = M V P
-    mat4_t mvp = mat4_mul_mat4(projection_matrix, view_matrix);
-    mvp = mat4_mul_mat4(mvp, model_matrix);
+    deleteDrawcalls();
+}
 
-
+void vertexShading2(mesh_t mesh, mat4_t mvp)
+{
     num_culled = 0;
     num_cull_backface = 0;
     num_cull_zero_area = 0;
@@ -179,9 +160,6 @@ void vertexShading2(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t
     cull_top = 0;
     cull_near = 0;
     cull_far = 0;
-
-    //triangles_to_render = NULL;
-    lines_to_render = NULL;
 
     int n_positions = array_length(mesh.vertpack);
     vec4_t* shaded_positions = NULL;
@@ -422,9 +400,6 @@ void vertexShading(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t 
     num_cull_xy = 0;
     num_cull_few = 0;
     num_cull_many = 0;
-
-    //triangles_to_render = NULL;
-    lines_to_render = NULL;
 
     // Loop all triangle faces of our mesh
     // It would be more efficient to extract all verts, texcoords, normals from mesh on startup to a mesh VertexBuffer
@@ -675,4 +650,34 @@ int cmpLess(const void *triangleA, const void *triangleB) {
 void sort_triangles()
 {
     qsort(get_triangles_to_render(), getNumTris(), sizeof(triangle_t), cmpLess);
+}
+
+void addDrawcall(mesh_t mesh, texture_t* t, mat4_t mvp)
+{
+    draw_call_t dc = {.mesh = mesh, .texture = t, .mvp = mvp, .polylist_begin = -1, .polylist_end = -1};
+    array_push(drawcall_list, dc);
+}
+
+void deleteDrawcalls()
+{
+    // see clearTris
+    //array_free(drawcall_list);
+}
+
+void shadeDrawcalls()
+{
+    int num_draws = array_length(drawcall_list);
+    for(int i=0; i<num_draws; i++)
+    {
+        int polys_before = getNumTris();
+        vertexShading2( drawcall_list[i].mesh, drawcall_list[i].mvp );
+        int polys_after = getNumTris();
+        drawcall_list[i].polylist_begin = polys_before;
+        drawcall_list[i].polylist_end = polys_after;
+    }
+}
+
+draw_call_t *get_drawcall_list()
+{
+    return drawcall_list;
 }

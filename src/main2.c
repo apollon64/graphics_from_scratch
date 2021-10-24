@@ -16,7 +16,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-void render(void) {
+void render(texture_t texture) {
     clear_color_buffer( packColor(255,0,255) );
     clear_z_buffer( 1.0f );
     draw_grid();
@@ -25,7 +25,7 @@ void render(void) {
     (vertex_texcoord_t){ 0,   pk_window_height()-0, 0.0f,   1.0f, 0.0f, 0.0f },
     (vertex_texcoord_t){ 100, pk_window_height()-100, 0.0f, 1.0f, 1.0f, 1.0f},
     (vertex_texcoord_t){ 100, pk_window_height()-00, 0.0f,  1.0f, 1.0f, 0.0f},
-    mesh_texture
+    texture
     );
 
     // A B G R
@@ -67,10 +67,10 @@ int main(int argc, char *argv[])
     const char* texture_file = "./assets/cube.png";
 
     //load_obj_file_data(mesh_file);
-    load_png_texture_data(texture_file);
+    texture_t texture = load_png_texture_data(texture_file);
 
     // Actually render out scene to the color and zbuffer! Exciting!
-    render();
+    render(texture);
 
     // Save out our color buffer so we can actually appreciate it
     const char* image_name = "tmp.png";
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     stbi_write_png(image_name, xres, yres, 4/*channels*/, color_buffer, xres * 4/*channels*/);
 
     // Somewhat pointless cleanup as OS will do this for us
-    free_png_texture();
+    free_png_texture(&texture);
     //free_mesh(&mesh);
     free(z_buffer);
     free(color_buffer);
