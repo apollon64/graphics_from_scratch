@@ -19,6 +19,7 @@ void vertex_texcoord_t_swap(vertex_texcoord_t *a, vertex_texcoord_t *b);
 float lerp (float a, float b, float f);
 int clamp(int x, int lo, int hi);
 float clampf(float x, float lo, float hi);
+uint32_t packColorFloat(float r, float g, float b);
 uint32_t packColor(U8 r, U8 g, U8 b);
 void unpackColor(uint32_t c, float *r, float *g, float *b);
 void setpix(int x, int y, uint32_t color);

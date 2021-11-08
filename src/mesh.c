@@ -1,5 +1,6 @@
 #include "mesh.h"
 
+#include <assert.h>
 #include <stddef.h> // NULL
 #include <stdio.h>
 #include <stdbool.h>
@@ -12,6 +13,30 @@
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
 
+
+static mesh_t** mesh_list = NULL;
+
+mesh_t* load_mesh_and_texture(const char* filename)
+{
+
+    mesh_t m = load_obj_file_data(filename);
+    mesh_t* mptr = (mesh_t*) malloc(sizeof(mesh_t));
+    memcpy(mptr, &m, sizeof(mesh_t));
+    array_push(mesh_list, mptr);
+    return mptr;
+}
+
+void free_all_meshes()
+{
+    int nmeshes = array_length(mesh_list);
+    for(int i=0; i<nmeshes; i++)
+    {
+        free_mesh( mesh_list[i] );
+    }
+    array_free(mesh_list);
+}
+
+
 typedef struct { mesh_vertex_t key; int n; } key_vert_tex_t;
 key_vert_tex_t* hashmap = NULL;
 
@@ -22,10 +47,7 @@ static mesh_t init_mesh()
         .normals = NULL,
         .texcoords = NULL,
         .faces = NULL,
-        .indices = NULL,
-        .translation = { 0, 0, 0 },
-        .rotation = { 0, 0, 0 },
-        .scale = { 1.0, 1.0, 1.0 },
+        .indices = NULL
     };
     return mesh;
 }
@@ -54,7 +76,9 @@ bool equal_vec2(vec2_t a, vec2_t b)
 
 bool equal_verts(mesh_vertex_t a, mesh_vertex_t b)
 {
-    return equal_vec3(a.p, b.p) && equal_vec2(a.uv, b.uv);
+    return equal_vec3(a.p, b.p) &&
+           equal_vec3(a.n, b.n) &&
+           equal_vec2(a.uv, b.uv);
 }
 
 static void deduplicate1(face_t face, mesh_t *mesh)
@@ -80,6 +104,10 @@ static void deduplicate1(face_t face, mesh_t *mesh)
                 i == 0 ? face.texcoord_a :
                 i == 1 ? face.texcoord_b :
                          face.texcoord_c];
+
+//        array_push(mesh->vertpack, new_vertex);
+//        int index = array_length(mesh->indices);
+//        array_push(mesh->indices, index);
 
 
         int found_idx = 0;

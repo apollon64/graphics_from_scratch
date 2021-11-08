@@ -24,6 +24,7 @@ typedef struct {
     vec3_t center;
     float z;
     float area2;
+    // uint8_t tex_hand; // We could store an index to texture per triangle to avoid segmenting tris into drawcalls
 } triangle_t;
 
 typedef struct {

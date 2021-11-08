@@ -100,6 +100,19 @@ float clampf(float x, float lo, float hi)
     return x;
 }
 
+uint32_t packColorFloat(float r, float g, float b)
+{
+    r = clampf(r, 0.0, 1.0);
+    g = clampf(g, 0.0, 1.0);
+    b = clampf(b, 0.0, 1.0);
+    uint32_t ret = 0xFF000000;
+    //U8 a = 0;
+    //ret |= a << 24;
+    ret |= (U8)(b*255) << 16;
+    ret |= (U8)(g*255) << 8;
+    ret |= (U8)(r*255) << 0;
+    return ret;
+}
 
 uint32_t packColor(U8 r, U8 g, U8 b)
 {

@@ -38,3 +38,21 @@ void array_free(void* array) {
         free(ARRAY_RAW_DATA(array));
     }
 }
+
+void array_size_clear(void* array) {
+    if (array != NULL) {
+        ARRAY_OCCUPIED(array) = 0;
+    }
+}
+
+/*
+
+    return sb_count(triangles_to_render);
+    if (triangles_to_render != NULL) stb_sb_free(triangles_to_render);
+    if (lines_to_render != NULL) stb_sb_free(lines_to_render);
+    if (drawcall_list != NULL) stb_sb_free(drawcall_list);
+    // Set Stretchy Buffer size (not capacity) to zero
+    if (triangles_to_render != NULL) stb__sbn(triangles_to_render)=0;
+    if (lines_to_render != NULL) stb__sbn(lines_to_render)=0;
+
+*/

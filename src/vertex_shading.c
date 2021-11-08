@@ -3,7 +3,6 @@
 #include "clip.h"
 #include "array.h" // stretchy buffer
 
-#include "stretchy_buffer.h"
 #include "func.h"
 
 #include <stddef.h> // NULL
@@ -25,7 +24,7 @@ triangle_t *get_triangles_to_render() { return triangles_to_render; }
 line_t* get_lines_to_render() { return lines_to_render; }
 
 float z_near = 0.01f;
-float z_far = 200.0f;
+float z_far = 400.0f;
 bool display_normals_enable = false;
 int num_culled;
 int num_cull_backface;
@@ -46,38 +45,27 @@ int cull_top = 0;
 int cull_near = 0;
 int cull_far = 0;
 
-//#define DYNAMIC_MEM_EACH_FRAME 1
-
 int getNumTris()
 {
-#if defined(DYNAMIC_MEM_EACH_FRAME)
     return array_length(triangles_to_render);
-#else
-    return sb_count(triangles_to_render);
-#endif
 }
 
 void freeTris()
 {
-#if defined(DYNAMIC_MEM_EACH_FRAME)
     array_free(triangles_to_render);
     array_free(lines_to_render);
     array_free(drawcall_list);
-#endif
 }
 
 static void clearTris()
 {
-#if defined(DYNAMIC_MEM_EACH_FRAME)
-    triangles_to_render = NULL;
-    lines_to_render = NULL;
-    drawcall_list = NULL;
-#else
-    // Set Stretchy Buffer size (not capacity) to zero
-    if (triangles_to_render != NULL) stb__sbn(triangles_to_render)=0;
-    if (lines_to_render != NULL) stb__sbn(lines_to_render)=0;
-    if (drawcall_list != NULL) stb__sbn(drawcall_list)=0;
-#endif
+    array_size_clear(triangles_to_render);
+    array_size_clear(lines_to_render);
+}
+
+void clearDrawcalls()
+{
+    array_size_clear(drawcall_list);
 }
 
 static void snap(float *v)
@@ -122,22 +110,6 @@ static void addLineToRender(vec3_t normal, vec3_t center, mat4_t mvp_matrix)
   if (start.w < 0 && end.w < 0) return; // TODO proper 3D line clipping
   line_t projected_line = {.a = to_screen_space(start), .b = to_screen_space(end) };
   array_push(lines_to_render, projected_line);
-}
-
-static void addTriangleToRender(triangle_t projected_triangle)
-{
-  // Save the projected triangle in the array of triangles to render
-#if defined(DYNAMIC_MEM_EACH_FRAME)
-    array_push(triangles_to_render, projected_triangle);
-#else
-  sb_push(triangles_to_render, projected_triangle);
-#endif
-}
-
-void vertexShadingInit()
-{
-    clearTris();
-    deleteDrawcalls();
 }
 
 void vertexShading2(mesh_t mesh, mat4_t mvp)
@@ -186,6 +158,16 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
                 (transformed_vertex.z <= -w1)<<4u |
                 (transformed_vertex.z >= +w1)<<5u;
 
+        uint8_t clip_code2 =
+                ((transformed_vertex.x + w1)<0) <<0u |
+                ((-transformed_vertex.x + w1)<0) <<1u |
+                ((transformed_vertex.y + w1)<0) <<2u |
+                ((-transformed_vertex.y + w1)<0) <<3u |
+                ((transformed_vertex.z + w1)<0) <<4u |
+                ((-transformed_vertex.z + w1)<0) <<5u;
+        //assert(clip_code == clip_code2);
+        clip_code = clip_code2;
+
         clip_codes[i] = clip_code;
         shaded_positions[i] = transformed_vertex;
     }
@@ -200,7 +182,10 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
         int idx2 = mesh.indices[i+2];
 
         // Find the combined clip by OR-ing all 3 vertex clips together
-        U8 combined_clip = clip_codes[idx0] | clip_codes[idx1] | clip_codes[idx2];
+        U8 clip0 = clip_codes[idx0];
+        U8 clip1 = clip_codes[idx1];
+        U8 clip2 = clip_codes[idx2];
+        U8 combined_clip = clip0 | clip1 | clip2;
         U8 combined_clip_and = clip_codes[idx0] & clip_codes[idx1] & clip_codes[idx2]; // bit only set if all 3 have it
 
         if (combined_clip)
@@ -256,7 +241,7 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
         center = vec3_mul(center, 1.0f / 3.0f);
 
 
-        if (combined_clip)
+        if (combined_clip /*zz yy xx */ )
         {
             polygon_t polygon = create_polygon_from_triangle(
                 transformed_vertices[0],
@@ -326,16 +311,13 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
                     num_culled++;
                     continue;
                 }
-
                 projected_triangle.area2 = area2;
-
                 projected_triangle.center = center;
                 projected_triangle.normal = face_normal;
                 // projected_triangle.colors = face_colors[0]; // TODO lerp colors
 
-                addTriangleToRender(projected_triangle);
+                array_push(triangles_to_render, projected_triangle);
             }
-
 
         } else {
             triangle_t projected_triangle;
@@ -368,7 +350,7 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
             projected_triangle.center = center;
             projected_triangle.normal = face_normal;
 
-            addTriangleToRender(projected_triangle);
+            array_push(triangles_to_render, projected_triangle);
             if (display_normals_enable)
             {
                 addLineToRender(face_normal, center, mvp);
@@ -382,12 +364,11 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
     array_free(clip_codes);
 }
 
-void vertexShading(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t projection_matrix)
+void vertexShading(mesh_t mesh, uniforms_t uniforms)
 {
-    clearTris();
     // mvp = M V P
-    mat4_t mvp = mat4_mul_mat4(projection_matrix, view_matrix);
-    mvp = mat4_mul_mat4(mvp, model_matrix);
+    mat4_t mvp = mat4_mul_mat4(uniforms.projection_matrix, uniforms.view_matrix);
+    mvp = mat4_mul_mat4(mvp, uniforms.model_matrix);
 
     num_culled = 0;
     num_cull_backface = 0;
@@ -435,12 +416,11 @@ void vertexShading(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t 
         // Loop all three vertices of this current face and apply transformations
         for (int j = 0; j < 3; j++) {
             // Transform face by concatenated MVP matrix, then divide by W (projection)
-            //vec4_t transformed_vertex = mat4_mul_vec4_project(mvp, vec4_from_vec3(face_vertices[j]) );
             // Multiply the world matrix by the original vector
-            vec4_t transformed_vertex = mat4_mul_vec4(model_matrix,  vec4_from_vec3(face_vertices[j]));
+            vec4_t transformed_vertex = mat4_mul_vec4(uniforms.model_matrix,  vec4_from_vec3(face_vertices[j]));
 
             // Multiply the view matrix by the vector to transform the scene to camera space
-            transformed_vertex = mat4_mul_vec4(view_matrix, transformed_vertex);
+            transformed_vertex = mat4_mul_vec4(uniforms.view_matrix, transformed_vertex);
 
             // Save transformed vertex in the array of transformed vertices
             transformed_vertices[j] = transformed_vertex;
@@ -500,7 +480,7 @@ void vertexShading(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t 
 
         // Scale and translate the projected points to the middle of the screen
         for (int j = 0; j < 3; j++) {
-            transformed_vertices[j] = mat4_mul_vec4_project( projection_matrix, transformed_vertices[j] );
+            transformed_vertices[j] = mat4_mul_vec4_project( uniforms.projection_matrix, transformed_vertices[j] );
             transformed_vertices[j] = to_screen_space(transformed_vertices[j]);
         }
 
@@ -584,7 +564,7 @@ void vertexShading(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t 
               projected_triangle.z = 0.f;
               for (int j=0; j<3; j++)
               {
-                vec4_t projected_point = mat4_mul_vec4_project( projection_matrix, transformed_and_clipped_vertices[j] );
+                vec4_t projected_point = mat4_mul_vec4_project( uniforms.projection_matrix, transformed_and_clipped_vertices[j] );
 
                 projected_point = to_screen_space(projected_point);
                 // TODO add culling if all 2 xes or 2 ys same
@@ -631,7 +611,7 @@ void vertexShading(mesh_t mesh, mat4_t model_matrix, mat4_t view_matrix, mat4_t 
               projected_triangle.normal = face_normal;
               // projected_triangle.colors = face_colors[0]; // TODO lerp colors
 
-              addTriangleToRender(projected_triangle);
+              array_push(triangles_to_render, projected_triangle);
             }
     } // nfaces
 
@@ -652,25 +632,48 @@ void sort_triangles()
     qsort(get_triangles_to_render(), getNumTris(), sizeof(triangle_t), cmpLess);
 }
 
-void addDrawcall(mesh_t mesh, texture_t* t, mat4_t mvp)
+void addDrawcall(vec3_t pos, vec3_t rot, enum eRender_method mode, mesh_t* mesh, texture_t* t, uniforms_t uniforms)
 {
-    draw_call_t dc = {.mesh = mesh, .texture = t, .mvp = mvp, .polylist_begin = -1, .polylist_end = -1};
+    // Create scale, rotation, and translation matrices that will be used to multiply the mesh vertices
+    vec3_t scale = {1,1,1};
+    mat4_t scale_matrix = mat4_make_scale(scale.x, scale.y, scale.z);
+    mat4_t translation_matrix = mat4_make_translation(pos.x,pos.y,pos.z);
+    mat4_t rotation_matrix_x = mat4_make_rotation_x(rot.x);
+    mat4_t rotation_matrix_y = mat4_make_rotation_y(rot.y);
+    mat4_t rotation_matrix_z = mat4_make_rotation_z(rot.z);
+
+    // Create a World Matrix combining scale, rotation, and translation matrices
+    mat4_t model_matrix = mat4_identity();
+
+    // Order matters: First scale, then rotate, then translate. [T]*[R]*[S]*v
+    model_matrix = mat4_mul_mat4(scale_matrix, model_matrix);
+    model_matrix = mat4_mul_mat4(rotation_matrix_x, model_matrix);
+    model_matrix = mat4_mul_mat4(rotation_matrix_y, model_matrix);
+    model_matrix = mat4_mul_mat4(rotation_matrix_z, model_matrix);
+    model_matrix = mat4_mul_mat4(translation_matrix, model_matrix);
+
+    uniforms.model_matrix = model_matrix;
+    draw_call_t dc = {.mesh = *mesh, .drawmode=mode, .texture = t, .uniforms = uniforms, .polylist_begin = -1, .polylist_end = -1};
     array_push(drawcall_list, dc);
 }
 
-void deleteDrawcalls()
+void shadeDrawcalls(int option)
 {
-    // see clearTris
-    //array_free(drawcall_list);
-}
-
-void shadeDrawcalls()
-{
+    clearTris();
     int num_draws = array_length(drawcall_list);
     for(int i=0; i<num_draws; i++)
     {
         int polys_before = getNumTris();
-        vertexShading2( drawcall_list[i].mesh, drawcall_list[i].mvp );
+
+        uniforms_t uniforms = drawcall_list[i].uniforms;
+        if (option==1) {
+            mat4_t mvp = mat4_mul_mat4(uniforms.projection_matrix, uniforms.view_matrix);
+            mvp = mat4_mul_mat4(mvp, uniforms.model_matrix);
+            vertexShading2( drawcall_list[i].mesh, mvp );
+        }
+        else
+            vertexShading( drawcall_list[i].mesh, drawcall_list[i].uniforms );
+
         int polys_after = getNumTris();
         drawcall_list[i].polylist_begin = polys_before;
         drawcall_list[i].polylist_end = polys_after;

@@ -17,11 +17,10 @@ typedef struct {
     face_t* faces;    // dynamic array of faces
     mesh_vertex_t* vertpack; // pos and texcoord together
     int32_t* indices;
-
-    vec3_t translation;
-    vec3_t rotation;  // oiler angles
-    vec3_t scale;
 } mesh_t;
+
+mesh_t *load_mesh_and_texture(const char* filename);
+void free_all_meshes();
 
 mesh_t load_obj_file_data(const char* filename);
 void free_mesh(mesh_t* mesh);

@@ -9,6 +9,7 @@
 #include "texture.h"
 #include "draw_triangle_pikuma.h"
 #include "draw_triangle_torb.h"
+#include "render_font/software_bitmapfont.h"
 
 //#define STB_IMAGE_IMPLEMENTATION
 //#include "stb_image.h"
@@ -16,7 +17,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-void render(texture_t texture) {
+void iterateDrawcalls(texture_t texture) {
     clear_color_buffer( packColor(255,0,255) );
     clear_z_buffer( 1.0f );
     draw_grid();
@@ -42,12 +43,15 @@ void render(texture_t texture) {
         circle(100 + i * 50, 200, 20);
 
     draw_line(0,0,pk_window_width(), pk_window_height(), packColor(0,0,0) );
+
+    moveto(0,0);
+    gprintf("Hello world\n");
 }
 
 
 int main(int argc, char *argv[])
 {
-    printf("Hello Triangle World\n");
+    printf("Hello Triangle World %s\n", __DATE__);
 
     // Allocate a color and depth buffer
     int xres = 400;
@@ -70,7 +74,7 @@ int main(int argc, char *argv[])
     texture_t texture = load_png_texture_data(texture_file);
 
     // Actually render out scene to the color and zbuffer! Exciting!
-    render(texture);
+    iterateDrawcalls(texture);
 
     // Save out our color buffer so we can actually appreciate it
     const char* image_name = "tmp.png";
@@ -79,7 +83,7 @@ int main(int argc, char *argv[])
     stbi_write_png(image_name, xres, yres, 4/*channels*/, color_buffer, xres * 4/*channels*/);
 
     // Somewhat pointless cleanup as OS will do this for us
-    free_png_texture(&texture);
+    free_all_textures();
     //free_mesh(&mesh);
     free(z_buffer);
     free(color_buffer);
