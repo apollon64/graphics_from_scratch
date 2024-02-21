@@ -601,6 +601,7 @@ static int stbds_is_key_equal(void *a, size_t elemsize, void *key, size_t keysiz
 
 void stbds_hmfree_func(void *a, size_t elemsize, size_t keyoff)
 {
+    (void)&keyoff;
   if (a == NULL) return;
   if (stbds_hash_table(a) != NULL) {
      if (stbds_hash_table(a)->string.mode == STBDS_SH_STRDUP) {
@@ -842,7 +843,6 @@ void * stbds_hmdel_key(void *a, size_t elemsize, void *key, size_t keysize, size
 {
   if (a == NULL) {
     return 0;
-  } else {
     stbds_hash_index *table;
     void *raw_a = STBDS_HASH_TO_ARR(a,elemsize);
     table = (stbds_hash_index *) stbds_header(raw_a)->hash_table;

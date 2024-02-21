@@ -2,7 +2,7 @@
 #define LIGHT_H
 
 #include <stdint.h>
-#include "vector.h"
+#include "vecmath.h"
 
 typedef struct {
     vec3_t direction;

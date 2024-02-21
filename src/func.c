@@ -2,7 +2,7 @@
 
 #include <math.h>
 #include <assert.h>
-#include "vector.h"
+#include "vecmath.h"
 #include <stdio.h>
 
 
@@ -190,8 +190,8 @@ void draw_rect(int x, int y, int width, int height, uint32_t color)
     int starty = clamp(y, 0, window_height-1);
     endx = clamp(endx, 0, window_width-1);
     endy = clamp(endy, 0, window_height-1);
-    for(int cx=startx; cx<endx; cx++)
-        for(int cy=starty; cy<endy; cy++)
+    for (int cy = starty; cy < endy; cy++)
+        for (int cx = startx; cx < endx; cx++)
         {
             //if (cx<0 || cy <0 || cx>=window_width || cy >= window_height)
             //{ SDL_Log("draw_rect oob"); abort(); }

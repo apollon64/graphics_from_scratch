@@ -4,14 +4,21 @@
 #include <stddef.h> // NULL
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h> // strncmp
 
 #include "array.h"
-#include "vector.h"
+#include "vecmath.h"
 #include "misc.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#pragma GCC diagnostic ignored "-Wunused-result"
+#pragma GCC diagnostic ignored "-Wunused-function"
 #define STB_DS_IMPLEMENTATION
-#include "stb_ds.h"
+#include "stb_ds.h" // uses hashmap hmgets, hmputs, hmfree
+#pragma GCC diagnostic pop
+
 
 
 static mesh_t** mesh_list = NULL;
@@ -145,7 +152,7 @@ static void deduplicate1(face_t face, mesh_t *mesh)
     } // end for each vertex in face
 }
 
-
+/*
 static void deduplicate2(face_t face, mesh_t *mesh)
 {
     // For each vertex in a face
@@ -188,7 +195,7 @@ static void deduplicate2(face_t face, mesh_t *mesh)
 
 
     } // end for each vertex in face
-}
+}*/
 
 mesh_t load_obj_file_data(const char* filename) {
     // Assumes .obj file contains positions and texcoords (v and vt)

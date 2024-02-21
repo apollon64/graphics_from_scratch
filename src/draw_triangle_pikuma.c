@@ -4,7 +4,7 @@
 #include "draw_triangle_pikuma.h"
 #include "triangle.h"
 #include "func.h"
-#include "vector.h"
+#include "vecmath.h"
 
 static void draw_pixel(int x, int y, uint32_t color) {
     setpix(x,y,color);

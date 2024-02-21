@@ -3,7 +3,7 @@
 
 
 #include "matrix.h"
-#include "vector.h"
+#include "vecmath.h"
 #include "mesh.h"
 #include "texture.h"
 
@@ -70,8 +70,8 @@ extern int cull_near;
 extern int cull_far;
 
 
-enum eCull_method cull_method;
-enum eRender_method render_method;
+extern enum eCull_method cull_method;
+extern enum eRender_method render_method;
 
 triangle_t *get_triangles_to_render();
 line_t* get_lines_to_render();

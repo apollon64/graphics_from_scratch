@@ -61,18 +61,6 @@ bool init_window(void) {
 
     return true;
 }
-
-static uint32_t packColor(U8 r, U8 g, U8 b)
-{
-    uint32_t ret = 0xFF000000;
-    //U8 a = 0;
-    //ret |= a << 24;
-    ret |= b << 16;
-    ret |= g << 8;
-    ret |= r << 0;
-    return ret;
-}
-
 void render_color_buffer(void) {
 
     // Display Z buffer as color
@@ -94,7 +82,6 @@ void render_color_buffer(void) {
     SDL_RenderCopy(renderer, color_buffer_texture, NULL, NULL);
     SDL_RenderPresent(renderer);
 }
-
 void destroy_window(void)
 {
     free(color_buffer);
@@ -103,7 +90,6 @@ void destroy_window(void)
     SDL_DestroyWindow(window);
     SDL_Quit();
 }
-
 int get_window_width()
 {
     return window_width;
@@ -112,7 +98,6 @@ int get_window_height()
 {
     return window_height;
 }
-
 double klock()
 {
     return SDL_GetTicks() / 1000.0;

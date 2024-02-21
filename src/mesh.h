@@ -1,7 +1,7 @@
 #ifndef MESH_H
 #define MESH_H
 
-#include "vector.h"
+#include "vecmath.h"
 #include "triangle.h"
 
 typedef struct {

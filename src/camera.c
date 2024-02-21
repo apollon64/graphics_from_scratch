@@ -23,6 +23,7 @@ camera_t camera_init( vec3_t position, float hang, float vang, float fov, float 
 
 void camera_controls(camera_t *camera, bool keySpace, bool shiftKey, int moveX, int moveZ, int mousx, int mousy, int bstatus, float dt)
 {
+   (void)&keySpace;
    float f = dt;
    if (shiftKey) f *= 8;
    float vx = moveX * f; //(keyRight-keyLeft)*f; //D-A

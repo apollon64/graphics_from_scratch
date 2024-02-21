@@ -12,8 +12,8 @@ typedef struct {
     uint8_t handle;
     void* upng_handle;
     uint32_t *texels;
-    int width;
-    int height;
+    unsigned width;
+    unsigned height;
 } texture_t;
 
 texture_t load_png_texture_data(const char* filename);

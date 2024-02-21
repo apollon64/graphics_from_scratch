@@ -1,7 +1,7 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
-#include "vector.h"
+#include "vecmath.h"
 #include "matrix.h"
 
 #include <stdbool.h>

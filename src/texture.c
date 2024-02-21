@@ -12,10 +12,20 @@ static int num_textures_loaded = 0;
 texture_t* texture_list = NULL;
 
 texture_t load_png_texture_data(const char* filename) {
+    printf("load:%s\n",filename);
     upng_t* png_texture = upng_new_from_file(filename);
+    upng_error err = upng_get_error(png_texture);
+    if (err == UPNG_ENOTFOUND)
+    {
+        fprintf(stderr, "upng_get_error: %d\n", err);
+        assert(0);
+    }
+    assert(upng_get_error(png_texture) == UPNG_EOK);
 
     if (png_texture != NULL) {
+        printf("decode:%s\n", filename);
         upng_decode(png_texture);
+        printf("get err:%s\n", filename);
         upng_error err = upng_get_error(png_texture);
         if (err == UPNG_EOK) {
             num_textures_loaded++;

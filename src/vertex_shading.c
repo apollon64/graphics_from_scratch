@@ -4,8 +4,11 @@
 #include "array.h" // stretchy buffer
 
 #include "func.h"
+#include "triangle.h"
+#include "draw_triangle_torb.h"
 
 #include <stddef.h> // NULL
+#include <stdlib.h> // qsort
 #include <math.h>
 #include <assert.h>
 
@@ -44,6 +47,9 @@ int cull_bottom = 0;
 int cull_top = 0;
 int cull_near = 0;
 int cull_far = 0;
+
+enum eCull_method cull_method = 0;
+enum eRender_method render_method = 0;
 
 int getNumTris()
 {
@@ -227,10 +233,10 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
         face_texcoords[1] = mesh.vertpack[idx1].uv;
         face_texcoords[2] = mesh.vertpack[idx2].uv;
 
-        uint32_t face_colors[3];
-        face_colors[0] = 0xFFFF0000;//vec3_to_uint32_t(mesh.colors[mesh_face.a ]);
-        face_colors[1] = 0xFF00FF00;//vec3_to_uint32_t(mesh.colors[mesh_face.b ]);
-        face_colors[2] = 0xFF0000FF;//vec3_to_uint32_t(mesh.colors[mesh_face.c ]);
+        //uint32_t face_colors[3];
+        //face_colors[0] = 0xFFFF0000;//vec3_to_uint32_t(mesh.colors[mesh_face.a ]);
+        //face_colors[1] = 0xFF00FF00;//vec3_to_uint32_t(mesh.colors[mesh_face.b ]);
+        //face_colors[2] = 0xFF0000FF;//vec3_to_uint32_t(mesh.colors[mesh_face.c ]);
 
         vec3_t face_normal = mesh.vertpack[idx0].n;
 
@@ -400,10 +406,10 @@ void vertexShading(mesh_t mesh, uniforms_t uniforms)
         face_texcoords[1] = mesh.texcoords[mesh_face.texcoord_b];
         face_texcoords[2] = mesh.texcoords[mesh_face.texcoord_c];
 
-        uint32_t face_colors[3];
-        face_colors[0] = 0xFFFF0000;//vec3_to_uint32_t(mesh.colors[mesh_face.a ]);
-        face_colors[1] = 0xFF00FF00;//vec3_to_uint32_t(mesh.colors[mesh_face.b ]);
-        face_colors[2] = 0xFF0000FF;//vec3_to_uint32_t(mesh.colors[mesh_face.c ]);
+//        uint32_t face_colors[3];
+  //      face_colors[0] = 0xFFFF0000;//vec3_to_uint32_t(mesh.colors[mesh_face.a ]);
+    //    face_colors[1] = 0xFF00FF00;//vec3_to_uint32_t(mesh.colors[mesh_face.b ]);
+      //  face_colors[2] = 0xFF0000FF;//vec3_to_uint32_t(mesh.colors[mesh_face.c ]);
 
         vec3_t center = {0,0,0};
         center = vec3_add(center, face_vertices[0]);
@@ -469,14 +475,14 @@ void vertexShading(mesh_t mesh, uniforms_t uniforms)
 
         // Before transforming to screen space, find area in world space
         // Check backface culling
-        vec3_t vector_a = vec3_from_vec4(transformed_vertices[0]); /*   A   */
-        vec3_t vector_b = vec3_from_vec4(transformed_vertices[1]); /*  / \  */
-        vec3_t vector_c = vec3_from_vec4(transformed_vertices[2]); /* C---B */
+        //vec3_t vector_a = vec3_from_vec4(transformed_vertices[0]); /*   A   */
+        //vec3_t vector_b = vec3_from_vec4(transformed_vertices[1]); /*  / \  */
+        //vec3_t vector_c = vec3_from_vec4(transformed_vertices[2]); /* C---B */
 
         // Get the vector subtraction of B-A and C-A
-        vec3_t vector_ab = vec3_sub(vector_b, vector_a);
-        vec3_t vector_ac = vec3_sub(vector_c, vector_a);
-        vec3_t transformed_normal = vec3_cross(vector_ab, vector_ac);
+        //vec3_t vector_ab = vec3_sub(vector_b, vector_a);
+        //vec3_t vector_ac = vec3_sub(vector_c, vector_a);
+        //vec3_t transformed_normal = vec3_cross(vector_ab, vector_ac);
 
         // Scale and translate the projected points to the middle of the screen
         for (int j = 0; j < 3; j++) {
@@ -493,9 +499,9 @@ void vertexShading(mesh_t mesh, uniforms_t uniforms)
         vec3_normalize(&face_normal);
 
         // Find the vector between a point in the triangle and camera origin
-        vec3_t origin = {0.f, 0.f, 0.f};
-        vec3_t camera_ray = vec3_sub(origin, vector_a);
-        float rayDotNormal = vec3_dot(camera_ray, transformed_normal);
+        //vec3_t origin = {0.f, 0.f, 0.f};
+        //vec3_t camera_ray = vec3_sub(origin, vector_a);
+        //float rayDotNormal = vec3_dot(camera_ray, transformed_normal);
 
         // Bypass the triangles looking away from camera
         float area2 = 0;
@@ -509,7 +515,6 @@ void vertexShading(mesh_t mesh, uniforms_t uniforms)
         if (cull_method == CULL_BACKFACE && !backfacing)
         {
             num_cull_backface++;
-            num_culled++;
             continue;
         }
 //        if ( area2 < 0.000001f)

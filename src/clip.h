@@ -1,8 +1,8 @@
 #pragma once
 
-#include "vector.h"
+#include "vecmath.h"
 
-#define MAX_NUM_POLY_VERTICES 10
+#define MAX_NUM_POLY_VERTICES 11
 enum {
     LEFT_FRUSTUM_PLANE,
     RIGHT_FRUSTUM_PLANE,

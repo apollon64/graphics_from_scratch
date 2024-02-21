@@ -8,6 +8,7 @@ CppApplication {
     Depends { name: "PikumaSoft" }
 
     files: [
+        "Makefile",
         "src/main.c",
         "src/display.c",
         "src/display.h",
@@ -87,14 +88,12 @@ StaticLibrary {
         "src/func.h",
         "src/light.c",
         "src/light.h",
-        //"src/main.c",
         "src/matrix.c",
         "src/matrix.h",
         "src/mesh.c",
         "src/mesh.h",
         "src/misc.c",
         "src/misc.h",
-        //"src/plf_nanotimer.h",
         "src/stretchy_buffer.h",
         "src/texture.c",
         "src/texture.h",
@@ -102,8 +101,8 @@ StaticLibrary {
         "src/typedefs.h",
         "src/upng.c",
         "src/upng.h",
-        "src/vector.c",
-        "src/vector.h",
+        "src/vecmath.c",
+        "src/vecmath.h",
         "src/render_font/software_bitmapfont.h",
         "src/render_font/software_bitmapfont.c",
     ]

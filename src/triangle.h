@@ -2,7 +2,7 @@
 #define TRIANGLE_H
 
 #include <stdint.h>
-#include "vector.h"
+#include "vecmath.h"
 
 typedef struct {
     int a;
@@ -15,6 +15,11 @@ typedef struct {
     int normal_b;
     int normal_c;
 } face_t;
+
+typedef struct {
+    float a,b,c;
+    float area2;
+} depthplane_t;
 
 typedef struct {
     vec4_t points[3];

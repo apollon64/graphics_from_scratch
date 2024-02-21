@@ -5,11 +5,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+
+#define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
 
 #include "func.h"
 #include "display.h"
-#include "vector.h"
+#include "vecmath.h"
 #include "mesh.h"
 #include "array.h"
 #include "matrix.h"
@@ -21,7 +23,6 @@
 //#include "stretchy_buffer.h"
 #include "camera.h"
 #include "render_font/software_bitmapfont.h"
-
 #include "vertex_shading.h"
 #include "clip.h" // init frustum
 
@@ -37,7 +38,7 @@ uniforms_t uniforms;
 
 bool sort_faces_by_z_enable = true;
 bool draw_triangles_torb = true;
-bool toggle_me_beautiful = true;
+int draw_rectangles = 0;
 
 int vertex_time_start = 0;
 int vertex_time_end = 0;
@@ -61,56 +62,37 @@ int key_down = 0;
 int key_left = 0;
 int key_right = 0;
 
-mesh_t* mesh;
+mesh_t* mesh_level;
 mesh_t* mesh_cube;
 mesh_t* mesh_f22;
-mesh_t* mesh_sphere;
-mesh_t* mesh_plane;
+//mesh_t* mesh_sphere;
+//mesh_t* mesh_plane;
 texture_t texture_from_file;
-texture_t brick_tex;
+//texture_t brick_tex;
 texture_t texture_f22;
 
-void setup(const char* mesh_file, const char* texture_file) {
+static void setup() {
+    puts("SETUP!");
     memset(&mouse,0,sizeof(mouse));
-
     // Initialize render mode and triangle culling method
     render_method = -1;
     cull_method = CULL_BACKFACE;
-
-//    mesh = load_mesh_and_texture(mesh_file);
-//    texture_from_file = load_png_texture_data(texture_file);
-
-    mesh = load_mesh_and_texture("./assets/wfbake.obj");
-    texture_from_file = load_png_texture_data("./assets/wf512.png");
-
+    texture_from_file = load_png_texture_data("./assets/cube.png");
+    texture_f22 = load_png_texture_data("./assets/f22.png");
     mesh_cube = load_mesh_and_texture("./assets/box.obj");
     mesh_f22 = load_mesh_and_texture("./assets/f22.obj");
-    mesh_sphere = load_mesh_and_texture("./assets/sphere.obj");
-    mesh_plane = load_mesh_and_texture("./assets/plane.obj");
-
-    brick_tex = load_png_texture_data("assets/brik.png");
-
-    texture_f22 = load_png_texture_data("./assets/f22.png");
 }
 
-void free_resources(void) {
+static void free_resources(void) {
     freeTris();
-
     free_all_textures();
     free_all_meshes();
 }
 
-
-uint32_t vec3_to_uint32_t(vec3_t c)
-{
-    return packColor( (U8)c.x*255, (U8)c.y*255, (U8)c.z*255);
-}
-
-void process_input(void) {
+static void process_input(void) {
     SDL_Event event;
     while ( SDL_PollEvent(&event) )
     {
-
         switch(event.type) {
         case SDL_QUIT:
             SDL_Log("SDL_QUIT\n");
@@ -144,9 +126,12 @@ void process_input(void) {
 //                mesh.translation.x -= 0.5f;
 
             if (event.key.keysym.sym == SDLK_PAGEUP)
-                toggle_me_beautiful = true;
+                draw_rectangles++;
             if (event.key.keysym.sym == SDLK_PAGEDOWN)
-                toggle_me_beautiful = false;
+                draw_rectangles--;
+            if (draw_rectangles < 0) draw_rectangles = 4;
+            if (draw_rectangles > 4) draw_rectangles = 0;
+
 
             if (event.key.keysym.sym == SDLK_w)
                 key_forward = 1;
@@ -158,8 +143,12 @@ void process_input(void) {
                 key_right = 1;
             if (event.key.keysym.sym == SDLK_LSHIFT)
                 keyShift = 1;
-
-
+            if (event.key.keysym.sym == SDLK_t) draw_triangles_torb = !draw_triangles_torb;
+            if (event.key.keysym.sym == SDLK_r)
+            {
+                draw_triangles_torb = false;
+            }
+            break;
 
         case SDL_TEXTINPUT:
 
@@ -170,11 +159,7 @@ void process_input(void) {
             if (event.key.keysym.sym == SDLK_z) sort_faces_by_z_enable = !sort_faces_by_z_enable;
             if (event.key.keysym.sym == SDLK_n) display_normals_enable = true;
 
-            if (event.key.keysym.sym == SDLK_t) draw_triangles_torb = !draw_triangles_torb;
-            if (event.key.keysym.sym == SDLK_r)
-            {
-                draw_triangles_torb = false;
-            }
+
             break;
 
         case SDL_KEYUP:
@@ -272,7 +257,7 @@ void process_input(void) {
     mouse.oy = mouse.y;
 }
 
-void sleep_until_target_fps() {
+static void sleep_until_target_fps() {
     // Wait some time until we reach the target frame time
     Uint32 sdl_time = SDL_GetTicks();
     int time_to_wait =
@@ -298,22 +283,32 @@ void update(void) {
 //    {
 //        addDrawcall((vec3_t){i*60,0,-j*60}, (vec3_t){0,0,0}, RENDER_TEXTURED, mesh, &texture_from_file, uniforms);
 //    }
-    addDrawcall((vec3_t){0,0,0}, (vec3_t){0,0,0}, RENDER_TEXTURED, mesh, &texture_from_file, uniforms);
+    //addDrawcall((vec3_t){0,0,0}, (vec3_t){0,0,0}, RENDER_TEXTURED, mesh, &texture_from_file, uniforms);
 
     uniforms.color = packColor(80,240,80);
     //addDrawcall( (vec3_t){0,-6,0}, (vec3_t){0,0,0}, RENDER_FILL_TRIANGLE, mesh_plane, 0x0, uniforms);
 
-    float radi = 4;
-    vec3_t f22_pos = { cosf(time)*radi, cosf(time*2), sinf(time)*radi };
-    vec3_t f22_rot = { time*2, -time-.5*PI, 0 };
-    addDrawcall(f22_pos, f22_rot, RENDER_TEXTURED, mesh_f22, &texture_f22, uniforms);
+    float radi = 6;
+    float anim_time = 0.f;
+    float s = 2.0f;
 
-    vec3_t f22_pos2 = { cosf(-time)*radi, cosf(-time*2), sinf(-time)*radi };
-    vec3_t f22_rot2 = { 0, time + .5f * PI, 0 };
-    addDrawcall(f22_pos2, f22_rot2, RENDER_TEXTURED, mesh_f22, &texture_f22, uniforms);
+    int N = 4;
+    for(int i=0; i<N; i++)
+        for(int j=0; j<N; j++)
+            for(int k=0; k<N; k++)
+            {
+                float x = -.5f*s*N + s*i;
+                float y = -.5f*s*N + s*j;
+                float z = -.5f*s*N + s*k;
+                vec3_t f22_pos2 = {x,y,z}; //{ cosf(-radi)*radi, cosf(-radi*2), sinf(-radi)*radi };
+                vec3_t f22_rot2 = { i/(float)(N-1)*2*PI,  j/(float)(N-1)*2*PI,  k/(float)(N-1)*2*PI };
+                addDrawcall(f22_pos2, f22_rot2, RENDER_TEXTURED, mesh_f22, &texture_f22, uniforms);
+            }
+
+
 
     uniforms.color = packColor(255,32,32);
-    addDrawcall( (vec3_t){0,0,0}, (vec3_t){0,0,0}, RENDER_FILL_TRIANGLE, mesh_sphere, NULL, uniforms);
+    //addDrawcall( (vec3_t){0,0,0}, (vec3_t){0,0,0}, RENDER_FILL_TRIANGLE, mesh_sphere, NULL, uniforms);
 
 //    int n = 20;
 //    for(int i=0; i<n; i++)
@@ -326,8 +321,6 @@ void update(void) {
 //    }
 
 }
-
-float maxf(float a, float b) { return a > b ? a : b; }
 
 static void draw_list_of_triangles(int option, int drawmode, uint32_t color, int first_triangle, int last_triangle, texture_t* dc_texture)
 {
@@ -368,7 +361,7 @@ static void draw_list_of_triangles(int option, int drawmode, uint32_t color, int
                 triangle.points[0].x, triangle.points[0].y, triangle.points[0].z, triangle.points[0].w, // vertex A
                 triangle.points[1].x, triangle.points[1].y, triangle.points[1].z, triangle.points[1].w, // vertex B
                 triangle.points[2].x, triangle.points[2].y, triangle.points[2].z, triangle.points[2].w, // vertex C
-                colors
+                colors_lit
             );
         }
 
@@ -421,7 +414,7 @@ static void draw_list_of_triangles(int option, int drawmode, uint32_t color, int
 
 }
 
-void iterateDrawcalls(void) {
+static void iterateDrawcalls(void) {
     // Loop all projected triangles and render them
 
     // We can only sort the faces within a mesh, now that all tris are one big list, need to find start offset + end
@@ -446,7 +439,7 @@ void iterateDrawcalls(void) {
 
 }
 
-void calc_frames_per_second()
+static void calc_frames_per_second()
 {
     numframes++;
     static double old_time = 0;
@@ -459,17 +452,22 @@ void calc_frames_per_second()
     }
 }
 
-void draw_quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float z, uint32_t color)
+static void draw_quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float z, uint32_t color)
 {
     uint32_t kolors[3];
     kolors[0] = color;
+#define TORB
+#ifdef TORB
     draw_triangle(x0, y0, z, z,
                   x1, y1, z, z,
                   x2, y2, z, z, kolors);
     draw_triangle(x0, y0, z, z,
                   x2, y2, z, z,
                   x3, y3, z, z, kolors);
-
+#else
+    draw_filled_triangle_p(x0, y0, x1, y1, x2, y2, color);
+    draw_filled_triangle_p(x0, y0, x2, y2, x3, y3, color);
+#endif
 //    vertex_texcoord_t v0 = (vertex_texcoord_t){x0, y0, z, z};
 //    vertex_texcoord_t v1 = (vertex_texcoord_t){x1, y1, z, z};
 //    vertex_texcoord_t v2 = (vertex_texcoord_t){x2, y2, z, z};
@@ -482,12 +480,14 @@ void draw_quad(float x0, float y0, float x1, float y1, float x2, float y2, float
 //    draw_triangle_textured(v0,v1,v2,&texture_from_file,kolors,area2 );
 //    draw_triangle_textured(v0,v2,v3,&texture_from_file,kolors,area2 );
 }
-
 int main(int argc, char *argv[])
 {
-    SDL_Log("Hello courses.pikuma.com ! Build %s at %s\n", __DATE__, __TIME__);
+    (void)&argc;
+    (void)&argv;
+    //SDL_Log("Hello courses.pikuma.com ! Build %s at %s\n", __DATE__, __TIME__);
+/*
     const char* mesh_file = "./assets/cube.obj";
-    const char* texture_file = "./assets/cube.png";
+    const char* texture_file = ;
     for(int i=0; i<argc; i++)
     {
         if (i==0) continue;
@@ -498,10 +498,9 @@ int main(int argc, char *argv[])
             texture_file = argv[i];
         }
     }
+*/
 
-
-    SDL_Log("try to load %s and %s", mesh_file, texture_file);
-    setup(mesh_file, texture_file);
+    setup();
 
     is_running = init_window();
     if (is_running) pk_init( color_buffer, z_buffer, get_window_width(), get_window_height() );
@@ -510,38 +509,53 @@ int main(int argc, char *argv[])
     float aspect_x = (float)get_window_width() / (float)get_window_height();
     float fov_y = PI / 3.0; // the same as 180/3, or 60deg
     float fov_x = atan(tan(fov_y / 2.f) * aspect_x) * 2.f;
-    //camera = camera_init((vec3_t){0,0,-50}, 0,0,fov_y, aspect_y, z_near, z_far);
-    camera = camera_init((vec3_t){-32, 32, 33 }, 2.8, 0.3, fov_y, aspect_y, z_near, z_far);
+    camera = camera_init((vec3_t){0,0,-20}, 0,0,fov_y, aspect_y, z_near, z_far);
+    //camera = camera_init((vec3_t){-32, 32, 33 }, 2.8, 0.3, fov_y, aspect_y, z_near, z_far);
 
     init_frustum_planes(fov_x, fov_y, z_near, z_far);//, frustum_planes);
 
     while (is_running) {
         process_input();
         update();
-
         vertex_time_start = SDL_GetTicks();
         shadeDrawcalls(draw_triangles_torb ? 1 : 0);
         vertex_time_end = SDL_GetTicks();
 
         raster_time_start = SDL_GetTicks();
 
-        if (toggle_me_beautiful)
-        {
-            clear_color_buffer( packColor(0,163,232) );
-        } else
-        {
-            int lim = pk_window_width() / 10 / 2;
-            int n = 10;
-            for (float i=0; i<n; i++)
-            {
-                float zeroTo1 = i / (float)n;
-                float s = 20.0f;
-                if (i*s > pk_window_width()/2 ) break;
-                draw_quad(i*s,i*s, pk_window_width()-i*s, i*s, pk_window_width()-i*s, pk_window_height()-i*s, i*s, pk_window_height()-i*s,
-                          1.f - zeroTo1, packColor(((int)(i)*30)%255,163,((int)i*100)%255) );
-            }
-            //draw_quad(0,0, pk_window_width(), 0, pk_window_width(), pk_window_height(), 0, pk_window_height(), packColor(0,163,232) );
-        }
+        int n = 10;
+		for (float i = 0; i < n; i++)
+		{
+			switch (draw_rectangles)
+			{
+			case 0: clear_color_buffer(packColor(0, 163, 232)); break;
+			case 1:
+				for (int y = 0; y < pk_window_height(); y++)
+					for (int x = 0; x < pk_window_width(); x++)
+					{
+						setpix(x, y, packColor(255, 0, 0));
+					}
+				break;
+			case 2:
+				for (float i = 0; i < n; i++)
+				{
+					clear_color_buffer(packColor(255, 0, 0));
+				}
+
+				break;
+			case 3:
+				uint32_t val = packColor(255, 0, 0);
+				size_t wxh = pk_window_width() * pk_window_height();
+				for (int i = 0; i < n; i++) {
+					for (int j = 0; j < wxh; j++)
+						color_buffer[j] = val;
+				}
+				break;
+			case 4:
+				draw_quad(0.f, 0.f, pk_window_width(), 0.f, pk_window_width(), pk_window_height(), 0.f, pk_window_height(), 0.0f, packColor(255, 0, 0));
+				break;
+			}
+		}
 
 
         clear_z_buffer( 1.0f );
@@ -561,13 +575,7 @@ int main(int argc, char *argv[])
             }
 
         }
-        //draw_triangle(300, 100, 50, 400, 500, 700, 0xFF00FF00);
-        draw_triangle_textured_p(
-            (vertex_texcoord_t){ 0,   get_window_height()-0, 0.0f,   1.0f, 0.0f, 0.0f },
-            (vertex_texcoord_t){ 100, get_window_height()-100, 0.0f, 1.0f, 1.0f, 1.0f},
-            (vertex_texcoord_t){ 100, get_window_height()-00, 0.0f,  1.0f, 1.0f, 0.0f},
-            texture_from_file
-        );
+
 
         iterateDrawcalls();
         raster_time_end = SDL_GetTicks();
@@ -581,6 +589,7 @@ int main(int argc, char *argv[])
         if (raster_time > raster_max) raster_max = raster_time;
         if (raster_time < raster_min) raster_min = raster_time;
         int num_triangles_to_render = getNumTris();
+        setfont(8, 16);
         gprintf("vertexTime:%4d, RasterTime:%4d, [%4d, %4d]\n", vertex_time, raster_time, raster_min, raster_max);
 
         gprintf("frame %d, fps:%d, culled:%d, trisRender:%d\n", numframes, frames_per_second, num_culled, num_triangles_to_render );
@@ -598,7 +607,10 @@ int main(int argc, char *argv[])
         gprintf("cam: %.1f, %.1f, %.1f,   %.1f, %.1f\n", camera.position.x, camera.position.y, camera.position.z, camera.posh, camera.posv);
 
         gprintf("l=%d, r=%d, t:%d, b:%d, n:%d, f:%d\n", cull_left, cull_right, cull_top, cull_bottom, cull_near, cull_far);
-        gprintf("toggle:%d\n", toggle_me_beautiful);
+        gprintf("draw_rectangles:%d (pgupdown) 1:setpix, 2:clear, 3:memset\n", draw_rectangles);
+        unsigned megapixels = pk_window_width() * pk_window_height() * 10;
+        unsigned megs = megapixels * sizeof(uint32_t) / 1024 /*bytes -> kB*/ / 1024 /* kB -> MB*/; // Pixel is 32-bit, 4 byte
+        gprintf("fillrate=%d MPIX/frame, megs_per_Frame=%d, GB/second=%f\n", (int) (megapixels/1e6f), megs, (megs*1000.0)/raster_time/1024.0 );
 
         render_color_buffer();
 
@@ -609,4 +621,3 @@ int main(int argc, char *argv[])
     SDL_Log("App closed.");
     return EXIT_SUCCESS;
 }
-

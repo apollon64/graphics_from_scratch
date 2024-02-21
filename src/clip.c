@@ -11,7 +11,7 @@ static plane_t frustum_planes[6];
 
 plane_t *get_frustum_planes()
 {
-    frustum_planes;
+    return &frustum_planes[0];
 }
 
 void init_frustum_planes(float fov_x, float fov_y, float z_near, float z_far)//, plane_t* frustum_planes)
@@ -97,19 +97,19 @@ void clip_polygon_against_plane2(polygon_t* polygon, float a, float b, float c, 
           };
 
           // Insert the intersection point to the list of "inside vertices"
+          assert(num_inside_vertices <= MAX_NUM_POLY_VERTICES);
           inside_vertices[num_inside_vertices] = intersection_point;
           inside_texcoords[num_inside_vertices] = interpolated_tc;
           num_inside_vertices++;
-          assert(num_inside_vertices <= MAX_NUM_POLY_VERTICES);
       }
 
       // Current vertex is inside the plane
       if (current_dot > 0) {
           // Insert the current vertex to the list of "inside vertices"
+          assert(num_inside_vertices <= MAX_NUM_POLY_VERTICES);
           inside_vertices[num_inside_vertices] = *current_vertex;
           inside_texcoords[num_inside_vertices] = *current_texcoord;
           num_inside_vertices++;
-          assert(num_inside_vertices <= MAX_NUM_POLY_VERTICES);
       }
 
       // Move to the next vertex

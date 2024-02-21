@@ -1,7 +1,7 @@
 #ifndef MATRIX_H
 #define MATRIX_H
 
-#include "vector.h"
+#include "vecmath.h"
 
 typedef struct {
     float m[4][4];
