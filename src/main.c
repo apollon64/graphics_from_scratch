@@ -5,10 +5,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
-
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
-
 #include "func.h"
 #include "display.h"
 #include "vecmath.h"
@@ -20,11 +18,12 @@
 #include "texture.h"
 #include "draw_triangle_pikuma.h"
 #include "draw_triangle_torb.h"
-//#include "stretchy_buffer.h"
 #include "camera.h"
 #include "render_font/software_bitmapfont.h"
 #include "vertex_shading.h"
+//#include "stretchy_buffer.h"
 #include "clip.h" // init frustum
+//int main(){}
 
 // The going could get rough
 bool is_running = false;
@@ -524,38 +523,42 @@ int main(int argc, char *argv[])
         raster_time_start = SDL_GetTicks();
 
         int n = 10;
-		for (float i = 0; i < n; i++)
-		{
-			switch (draw_rectangles)
-			{
-			case 0: clear_color_buffer(packColor(0, 163, 232)); break;
-			case 1:
-				for (int y = 0; y < pk_window_height(); y++)
-					for (int x = 0; x < pk_window_width(); x++)
-					{
-						setpix(x, y, packColor(255, 0, 0));
-					}
-				break;
-			case 2:
-				for (float i = 0; i < n; i++)
-				{
-					clear_color_buffer(packColor(255, 0, 0));
-				}
+        for (float i = 0; i < n; i++)
+        {
+            switch (draw_rectangles)
+            {
+            case 0: clear_color_buffer(packColor(0, 163, 232)); break;
+            case 1:
+                for (int y = 0; y < pk_window_height(); y++)
+                    for (int x = 0; x < pk_window_width(); x++)
+                    {
+                        setpix(x, y, packColor(255, 0, 0));
+                    }
+                break;
+            case 2:
+                for (float i = 0; i < n; i++)
+                {
+                    clear_color_buffer(packColor(255, 0, 0));
+                }
 
-				break;
-			case 3:
-				uint32_t val = packColor(255, 0, 0);
-				size_t wxh = pk_window_width() * pk_window_height();
-				for (int i = 0; i < n; i++) {
-					for (int j = 0; j < wxh; j++)
-						color_buffer[j] = val;
-				}
-				break;
-			case 4:
-				draw_quad(0.f, 0.f, pk_window_width(), 0.f, pk_window_width(), pk_window_height(), 0.f, pk_window_height(), 0.0f, packColor(255, 0, 0));
-				break;
-			}
-		}
+                break;
+            case 3:
+            {
+                unsigned val = packColor(255, 0, 0);
+                int wxh = pk_window_width() * pk_window_height();
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < wxh; j++)
+                        color_buffer[j] = val;
+                }
+                break;
+            }
+            case 4:
+            {
+                draw_quad(0.f, 0.f, pk_window_width(), 0.f, pk_window_width(), pk_window_height(), 0.f, pk_window_height(), 0.0f, packColor(255, 0, 0));
+                break;
+            }
+            }
+        }
 
 
         clear_z_buffer( 1.0f );
