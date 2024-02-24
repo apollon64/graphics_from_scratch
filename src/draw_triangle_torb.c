@@ -131,9 +131,8 @@ static /*inline*/ void draw_texel(int x, int y, float u, float v, texture_t* tex
     //tex_x %= texture->width;
     //tex_y %= texture->height;
     unsigned tex_idx = tex_y * texture->width + tex_x;
-    //assert(tex_idx >= 0 && "tex idx less 0");
-    //assert(tex_idx <= texture->width*texture->height*4 && "tex idx oob");
-    uint32_t texel = texture->texels[tex_idx];
+    uint32_t texend = texture->width * texture->height;
+    uint32_t texel = tex_idx < texend ? texture->texels[tex_idx] : 0;
 
     //uint32_t color = 0xFFFFFFFF;
     //uint32_t texel_lit = mix_colors( packColor(tex_r, tex_g, tex_b), color, .5f);
@@ -142,19 +141,25 @@ static /*inline*/ void draw_texel(int x, int y, float u, float v, texture_t* tex
     //setpix(x,y, packColor(u*255, v*255, (1-u-v)*255 ) );
 }
 
-static void interpolate_uv(int x, int y, float z, float area2,
-                           vec3_t coeffA,
-                           vec3_t coeffB,
-                           vec3_t coeffC,
-                           vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2,
-                           texture_t* texture)
+typedef struct {
+    depthplane_t dplane;
+    vec3_t coeffA, coeffB, coeffC;
+    vertex_texcoord_t p0, p1, p2;
+    texture_t *texture;
+} context_t;
+
+
+static void interpolate_uv(int x, int y, float z, float area2, context_t* context)
 {
     float* z_buffer = pk_z_buffer();
     float buffer_z = z_buffer[(pk_window_width() * y) + x];
     if ( z < buffer_z ) {
-        vec3_t weights = barycentric_weights_from_coefficents(x+.5f, y+.5f, coeffA, coeffB, coeffC, area2);
+        z_buffer[(pk_window_width() * y) + x] = z;
+        //setpix(x,y, packColorFloat(context->coeffA.x,context->coeffA.y,context->coeffA.z) );
+        //return;
+        vec3_t weights = barycentric_weights_from_coefficents(x+.5f, y+.5f, context->coeffA, context->coeffB, context->coeffC, area2);
         // Also interpolate the value of 1/w for the current pixel
-        float one_over_w = p0.w * weights.x + p1.w * weights.y + p2.w * weights.z;
+        float one_over_w = context->p0.w * weights.x + context->p1.w * weights.y + context->p2.w * weights.z;
 
 //        if (0)
 //        {
@@ -195,15 +200,14 @@ static void interpolate_uv(int x, int y, float z, float area2,
 
         // Doing UV interpolation only if we pass Z test helps a lot!
         // We could avoid Z interpolation also if we saved Z as a plane or did interpolation in rasterizer/scanline
-        float u = p0.u * weights.x + p1.u * weights.y + p2.u * weights.z;
-        float v = p0.v * weights.x + p1.v * weights.y + p2.v * weights.z;
+        float u = context->p0.u * weights.x + context->p1.u * weights.y + context->p2.u * weights.z;
+        float v = context->p0.v * weights.x + context->p1.v * weights.y + context->p2.v * weights.z;
 
         float one_over_one_over_w = 1.0f  / one_over_w;
         u *= one_over_one_over_w;
         v *= one_over_one_over_w;
 
-        draw_texel(x, y, u, v, texture);
-        z_buffer[(pk_window_width() * y) + x] = z;
+        draw_texel(x, y, u, v, context->texture);
     }
 
 }
@@ -223,14 +227,15 @@ static inline vec3_t makeEdge(float x0,float y0, float x1, float y1)
     };
 }
 
-void draw_triangle(
-  float x0, float y0, float z0, float w0,
-  float x1, float y1, float z1, float w1,
-  float x2, float y2, float z2, float w2,
-  uint32_t* colors)
-{
-    // Should re-use
-}
+//void draw_triangle(
+//  float x0, float y0, float z0, float w0,
+//  float x1, float y1, float z1, float w1,
+//  float x2, float y2, float z2, float w2,
+//  uint32_t* colors)
+//{
+//    // Should re-use
+
+//}
 
 float getDepth(depthplane_t depthplane, float sample_x, float sample_y) {
   //  Interpolated result:
@@ -282,6 +287,182 @@ float getDepth(depthplane_t depthplane, float sample_x, float sample_y) {
    return depthplane;
 }
 
+ /* Define a macro to swap two variables */
+ #define SWAP(a, b, temp) { temp = a; a = b; b = temp; }
+
+typedef struct {
+    float begin;
+    float step;
+
+    //
+    float from;
+    float ystart;
+    float inv_slope1;
+} Slope;
+
+typedef struct {
+    Slope slopes[4]; // x w u v
+} SlopeArray;
+
+/* Define the types of functors */
+typedef void (*GetXYFuncPtr)(const void*, int*, int*);
+typedef Slope (*MakeSlopeFuncPtr)(float from, float to, float scanlines, float);
+typedef void (*DrawScanlineFuncPtr)(int, Slope*, Slope*, context_t* context);
+
+/* Define a structure to hold the state of functors */
+typedef struct {
+    GetXYFuncPtr getXY;
+    MakeSlopeFuncPtr makeSlope;
+    DrawScanlineFuncPtr drawScanline;
+} Functors;
+
+/* Define a structure to hold a pair of integers */
+typedef struct {
+    float x;
+    float y;
+} PairFloat;
+
+/* Function to rasterize a triangle */
+void RasterizeTriangle(const vertex_texcoord_t p0, const vertex_texcoord_t p1, const vertex_texcoord_t p2,
+                       const Functors* functors, context_t *context) {
+    float x0, y0, x1, y1, x2, y2, temp;
+    SlopeArray sides[2];
+
+    /* Get x, y coordinates */
+    x0 = p0.x-.5f; y0 = p0.y-.5f;
+    x1 = p1.x-.5f; y1 = p1.y-.5f;
+    x2 = p2.x-.5f; y2 = p2.y-.5f;
+
+    /* Sort the points */
+    if (y1 < y0 || (y1 == y0 && x1 < x0)) { SWAP(x0, x1, temp); SWAP(y0, y1, temp); }
+    if (y2 < y0 || (y2 == y0 && x2 < x0)) { SWAP(x0, x2, temp); SWAP(y0, y2, temp); }
+    if (y2 < y1 || (y2 == y1 && x2 < x1)) { SWAP(x1, x2, temp); SWAP(y1, y2, temp); }
+
+    /* Refuse to draw arealess triangles */
+    if ((int)y0 == (int)y2) return;
+
+    /* Determine short side */
+    bool shortside = (y1 - y0) * (x2 - x0) < (x1 - x0) * (y2 - y0);
+
+    /* Allocate space for slopes */
+    sides[!shortside].slopes[0] = (*(functors->makeSlope))(x0, x2, y2-y0, y0);
+    sides[!shortside].slopes[1] = (*(functors->makeSlope))(p0.w, p2.w, y2-y0, y0);
+    sides[!shortside].slopes[2] = (*(functors->makeSlope))(p0.u, p2.u, y2-y0, y0);
+    sides[!shortside].slopes[3] = (*(functors->makeSlope))(p0.v, p2.v, y2-y0, y0);
+
+//    if((int)(y0) < (int)(y1))
+//    {
+//        // Calculate the first slope for short side. The number of lines cannot be zero.
+//        sides[shortside] = (*(functors->makeSlope))(x0, x1, y1-y0);
+//        for(int y = y0; y < (int)(y1); ++y)
+//        {
+//            // On a single scanline, we go from the left X coordinate to the right X coordinate.
+//            (*(functors->drawScanline))(y, &sides[0], &sides[1]);
+//        }
+//    }
+//    if((int)(y1) < (int)(y2))
+//    {
+//        // Calculate the second slope for short side. The number of lines cannot be zero.
+//        sides[shortside] = (*(functors->makeSlope))(x1, x2, y2-y1);
+//        for(int y = y1; y < (int)(y2); ++y)
+//        {
+//            // On a single scanline, we go from the left X coordinate to the right X coordinate.
+//            (*(functors->drawScanline))(y, &sides[0], &sides[1]);
+//        }
+//    }
+
+    /*  The main rasterizing loop. Note that this is intentionally designed such that
+    // there's only one place where DrawScanline() is invoked. This will minimize the
+    // chances that the compiler fails to inline the functor. */
+    int iy0 = ceilf(y0);
+    int iy1 = ceilf(y1);
+    int iy2 = ceilf(y2);
+
+    for (int y = iy0, endy = iy0; ; ++y) {
+        if (y >= endy) {
+            /* If y of p2 is reached, the triangle is complete */
+            if (y >= iy2) break;
+            /* Recalculate slope for short side */
+            endy = (y < iy1) ?  iy1 : iy2;
+            sides[shortside].slopes[0] = (y < iy1) ?
+                    (*(functors->makeSlope))(x0, x1,  y1 - y0, y0) :
+                    (*(functors->makeSlope))(x1, x2,  y2 - y1, y1);
+
+            sides[shortside].slopes[1] = (y < iy1) ?
+                    (*(functors->makeSlope))(p0.w, p1.w,  y1 - y0, y0) :
+                    (*(functors->makeSlope))(p1.w, p2.w,  y2 - y1, y1);
+
+            sides[shortside].slopes[2] = (y < iy1) ?
+                    (*(functors->makeSlope))(p0.u, p1.u,  y1 - y0, y0) :
+                    (*(functors->makeSlope))(p1.u, p2.u,  y2 - y1, y1);
+
+            sides[shortside].slopes[3] = (y < iy1) ?
+                    (*(functors->makeSlope))(p0.v, p1.v,  y1 - y0, y0) :
+                    (*(functors->makeSlope))(p1.v, p2.v,  y2 - y1, y1);
+        }
+        /* Draw scanline */
+        (*(functors->drawScanline))(y, &sides[0].slopes[0], &sides[1].slopes[0], context);
+    }
+}
+
+/* Function to get x, y coordinates */
+void GetXY(const void* p, int* x, int* y) {
+    const PairFloat* point = (const PairFloat*)p;
+    *x = (int)point->x;
+    *y = (int)point->y;
+}
+
+/* Function to generate slope */
+Slope MakeSlope(const float from, const float to, float ydelta, float ystart) {
+    //int begin = from, end = to;
+    float inv_step = 1.f / ydelta;
+    Slope slope;
+    slope.begin = ceilf(from);
+    slope.step = (to - from) * inv_step;
+
+    slope.from = from;
+    slope.ystart = ystart;
+    slope.inv_slope1 = (to-from) / ydelta;
+    return slope;
+}
+float LerpSlope(Slope* slope, int y) {
+    return ceilf(slope->from + (y - slope->ystart) * slope->inv_slope1);
+}
+
+/* Function to draw a scanline */
+void DrawScanlineSingleColor(int y, Slope* left, Slope *right) {
+    int x = left->begin, endx = right->begin;
+    for (; x < endx; ++x) {
+        uint32_t color = 0x00FF0000;
+        //uint32_t texel_lit = mix_colors( packColor(tex_r, tex_g, tex_b), color, .5f);
+        //setpix(x,y, texel_lit);
+        setpix(x, y, color);
+    }
+    left->begin += left->step;
+    right->begin += right->step;
+}
+
+/* Function to draw a scanline */
+void DrawScanlineDepth(int y, Slope* left, Slope *right, context_t *context) {
+    //int x = left->begin, endx = right->begin;
+
+    int x = LerpSlope(left, y), endx = LerpSlope(right, y);
+
+    for (; x < endx; ++x) {
+        float z = getDepth(context->dplane,x,y);
+        interpolate_uv( x, y, z, context->dplane.area2, context);
+    }
+    //left->begin += left->step;
+    //right->begin += right->step;
+}
+
+
+/* Function to draw a filled single color polygon */
+void DrawFilledSingleColorPolygon(PairFloat p0, PairFloat p1, PairFloat p2, depthplane_t dplane) {
+
+}
+
+
 void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2,
                             texture_t *texture, uint32_t* colors, float area2)
 {
@@ -323,6 +504,64 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
         return;
     }
 
+    vec4_t verts[3];
+    verts[0] =(vec4_t) {p0.x, p0.y, p0.z, 0.0f};
+    verts[1] =(vec4_t) {p1.x, p1.y, p1.z, 0.0f};
+    verts[2] =(vec4_t) {p2.x, p2.y, p2.z, 0.0f};
+    depthplane_t dplane = initDepthPlane(verts);
+    Functors functors;
+    functors.getXY = &GetXY;
+    functors.makeSlope = &MakeSlope;
+    functors.drawScanline = &DrawScanlineDepth;
+
+    vec3_t e0 = makeEdge( p0.x,p0.y, p1.x,p1.y );
+    vec3_t e1 = makeEdge( p1.x,p1.y, p2.x,p2.y );
+    vec3_t e2 = makeEdge( p2.x,p2.y, p0.x,p0.y );
+    // Coeffs equal edges, but rotated
+    // Normalize coeffs by dividing by area squared. This gives us perspective.
+    vec3_t coeffA = vec3_mul(e1, 1.f/area2);
+    vec3_t coeffB = vec3_mul(e2, 1.f/area2);
+    vec3_t coeffC = vec3_mul(e0, 1.f/area2);
+
+    p0.v = 1.0f - p0.v;
+    p1.v = 1.0f - p1.v;
+    p2.v = 1.0f - p2.v;
+
+    (void)&colors[0];
+    //uint32_t first_color = colors[0];
+
+// pre-divide u,v by w
+    p0.u /= p0.w;
+    p1.u /= p1.w;
+    p2.u /= p2.w;
+
+    p0.v /= p0.w;
+    p1.v /= p1.w;
+    p2.v /= p2.w;
+
+// pre-divide z by w
+    /*p0.z /= p0.w;
+    p1.z /= p1.w;
+    p2.z /= p2.w;*/
+
+// make .w the reciprocal of w
+    p0.w = 1.0f / p0.w;
+    p1.w = 1.0f / p1.w;
+    p2.w = 1.0f / p2.w;
+
+    context_t context;
+    context.coeffA = coeffA;
+    context.coeffB = coeffB;
+    context.coeffC = coeffC;
+    context.p0 = p0;
+    context.p1 = p1;
+    context.p2 = p2;
+    context.dplane = dplane;
+    context.texture = texture;
+
+    RasterizeTriangle(p0, p1, p2, &functors, &context);
+    return;
+
     // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
     if ( p0.y > p1.y ) {
         vertex_texcoord_t_swap( &p0, &p1 );
@@ -334,11 +573,7 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
         vertex_texcoord_t_swap( &p0, &p1 );
     }
 
-    vec4_t verts[3];
-    verts[0] =(vec4_t) {p0.x, p0.y, p0.z, 0.0f};
-    verts[1] =(vec4_t) {p1.x, p1.y, p1.z, 0.0f};
-    verts[2] =(vec4_t) {p2.x, p2.y, p2.z, 0.0f};
-    depthplane_t dplane = initDepthPlane(verts);
+
 
     // go back and up half a pixel
     float fx0 = p0.x - .5f;
@@ -347,6 +582,7 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
     float fy1 = p1.y - .5f;
     float fx2 = p2.x - .5f;
     float fy2 = p2.y - .5f;
+
 
     ivec2_t clipMin = {0,0};
     ivec2_t clipMax = {pk_window_width(), pk_window_height()};
@@ -384,40 +620,9 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
 //        return;
 //    }
 
-    p0.v = 1.0f - p0.v;
-    p1.v = 1.0f - p1.v;
-    p2.v = 1.0f - p2.v;
 
-    (void)&colors[0];
-    //uint32_t first_color = colors[0];
 
-// pre-divide u,v by w
-    p0.u /= p0.w;
-    p1.u /= p1.w;
-    p2.u /= p2.w;
 
-    p0.v /= p0.w;
-    p1.v /= p1.w;
-    p2.v /= p2.w;
-
-// pre-divide z by w
-    /*p0.z /= p0.w;
-    p1.z /= p1.w;
-    p2.z /= p2.w;*/
-
-// make .w the reciprocal of w
-    p0.w = 1.0f / p0.w;
-    p1.w = 1.0f / p1.w;
-    p2.w = 1.0f / p2.w;
-
-    vec3_t e0 = makeEdge( p0.x,p0.y, p1.x,p1.y );
-    vec3_t e1 = makeEdge( p1.x,p1.y, p2.x,p2.y );
-    vec3_t e2 = makeEdge( p2.x,p2.y, p0.x,p0.y );
-    // Coeffs equal edges, but rotated
-    // Normalize coeffs by dividing by area squared. This gives us perspective.
-    vec3_t coeffA = vec3_mul(e1, 1.f/area2);
-    vec3_t coeffB = vec3_mul(e2, 1.f/area2);
-    vec3_t coeffC = vec3_mul(e0, 1.f/area2);
 
     ///////////////////////////////////////////////////////
     // Render the upper part of the triangle (flat-bottom)
@@ -449,7 +654,7 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
                 assert(y < pk_window_height() );
                 // Draw our pixel with the color that comes from the texture
                 float z = getDepth(dplane,x,y);
-                interpolate_uv( x, y, z, dplane.area2, coeffA, coeffB, coeffC, p0, p1, p2, texture);
+                interpolate_uv( x, y, z, dplane.area2, &context);
             }
         }
     }
@@ -484,7 +689,7 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
 
                 // Draw our pixel with the color that comes from the texture
                 float z = getDepth(dplane,x,y);
-                interpolate_uv( x, y, z, dplane.area2, coeffA, coeffB, coeffC, p0, p1, p2, texture);
+                interpolate_uv( x, y, z, dplane.area2, &context);
             }
         }
     }

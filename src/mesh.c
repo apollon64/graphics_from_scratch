@@ -25,7 +25,6 @@ static mesh_t** mesh_list = NULL;
 
 mesh_t* load_mesh_and_texture(const char* filename)
 {
-
     mesh_t m = load_obj_file_data(filename);
     mesh_t* mptr = (mesh_t*) malloc(sizeof(mesh_t));
     memcpy(mptr, &m, sizeof(mesh_t));

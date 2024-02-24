@@ -70,6 +70,9 @@ texture_t texture_from_file;
 //texture_t brick_tex;
 texture_t texture_f22;
 
+mesh_t* mesh_sponza;
+texture_t texture_sponza;
+
 static void setup() {
     puts("SETUP!");
     memset(&mouse,0,sizeof(mouse));
@@ -80,6 +83,9 @@ static void setup() {
     texture_f22 = load_png_texture_data("./assets/f22.png");
     mesh_cube = load_mesh_and_texture("./assets/box.obj");
     mesh_f22 = load_mesh_and_texture("./assets/f22.obj");
+//    puts("Loading sponza");
+//    texture_sponza = load_png_texture_data("./assets/sponza2_packed_full.png");
+//    mesh_sponza = load_mesh_and_texture("./assets/sponza2_packed.obj");
 }
 
 static void free_resources(void) {
@@ -296,15 +302,17 @@ void update(void) {
         for(int j=0; j<N; j++)
             for(int k=0; k<N; k++)
             {
-                float x = -.5f*s*N + s*i;
-                float y = -.5f*s*N + s*j;
-                float z = -.5f*s*N + s*k;
+                float x = -.5f*s*(N-1) + s*i;
+                float y = -.5f*s*(N-1) + s*j;
+                float z = -.5f*s*(N-1) + s*k;
                 vec3_t f22_pos2 = {x,y,z}; //{ cosf(-radi)*radi, cosf(-radi*2), sinf(-radi)*radi };
                 vec3_t f22_rot2 = { i/(float)(N-1)*2*PI,  j/(float)(N-1)*2*PI,  k/(float)(N-1)*2*PI };
                 addDrawcall(f22_pos2, f22_rot2, RENDER_TEXTURED, mesh_f22, &texture_f22, uniforms);
             }
 
-
+    //vec3_t sponza_pos = {0,0,0};
+    //vec3_t sponza_rot = {0,0,0};
+    //addDrawcall(sponza_pos, sponza_rot, RENDER_TEXTURED, mesh_sponza, &texture_sponza, uniforms);
 
     uniforms.color = packColor(255,32,32);
     //addDrawcall( (vec3_t){0,0,0}, (vec3_t){0,0,0}, RENDER_FILL_TRIANGLE, mesh_sphere, NULL, uniforms);
@@ -354,15 +362,15 @@ static void draw_list_of_triangles(int option, int drawmode, uint32_t color, int
         // End Per Face Lighting
 
         // Draw filled triangle
-        if (drawmode == RENDER_FILL_TRIANGLE || drawmode == RENDER_FILL_TRIANGLE_WIRE)
-        {
-            draw_triangle(
-                triangle.points[0].x, triangle.points[0].y, triangle.points[0].z, triangle.points[0].w, // vertex A
-                triangle.points[1].x, triangle.points[1].y, triangle.points[1].z, triangle.points[1].w, // vertex B
-                triangle.points[2].x, triangle.points[2].y, triangle.points[2].z, triangle.points[2].w, // vertex C
-                colors_lit
-            );
-        }
+//        if (drawmode == RENDER_FILL_TRIANGLE || drawmode == RENDER_FILL_TRIANGLE_WIRE)
+//        {
+//            draw_triangle(
+//                triangle.points[0].x, triangle.points[0].y, triangle.points[0].z, triangle.points[0].w, // vertex A
+//                triangle.points[1].x, triangle.points[1].y, triangle.points[1].z, triangle.points[1].w, // vertex B
+//                triangle.points[2].x, triangle.points[2].y, triangle.points[2].z, triangle.points[2].w, // vertex C
+//                colors_lit
+//            );
+//        }
 
         // Draw filled triangle
         if (drawmode == RENDER_TEXTURED || drawmode == RENDER_TEXTURED_WIRE)
@@ -457,12 +465,12 @@ static void draw_quad(float x0, float y0, float x1, float y1, float x2, float y2
     kolors[0] = color;
 #define TORB
 #ifdef TORB
-    draw_triangle(x0, y0, z, z,
-                  x1, y1, z, z,
-                  x2, y2, z, z, kolors);
-    draw_triangle(x0, y0, z, z,
-                  x2, y2, z, z,
-                  x3, y3, z, z, kolors);
+//    draw_triangle(x0, y0, z, z,
+//                  x1, y1, z, z,
+//                  x2, y2, z, z, kolors);
+//    draw_triangle(x0, y0, z, z,
+//                  x2, y2, z, z,
+//                  x3, y3, z, z, kolors);
 #else
     draw_filled_triangle_p(x0, y0, x1, y1, x2, y2, color);
     draw_filled_triangle_p(x0, y0, x2, y2, x3, y3, color);
@@ -508,7 +516,9 @@ int main(int argc, char *argv[])
     float aspect_x = (float)get_window_width() / (float)get_window_height();
     float fov_y = PI / 3.0; // the same as 180/3, or 60deg
     float fov_x = atan(tan(fov_y / 2.f) * aspect_x) * 2.f;
-    camera = camera_init((vec3_t){0,0,-20}, 0,0,fov_y, aspect_y, z_near, z_far);
+    camera = camera_init((vec3_t){3,7,-2}, 0,0,fov_y, aspect_y, z_near, z_far);
+    camera.posv = 3.14159/4.f;
+    camera.posh = -3.14159/4.f;
     //camera = camera_init((vec3_t){-32, 32, 33 }, 2.8, 0.3, fov_y, aspect_y, z_near, z_far);
 
     init_frustum_planes(fov_x, fov_y, z_near, z_far);//, frustum_planes);
