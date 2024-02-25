@@ -290,7 +290,7 @@ void update(void) {
 //    }
     //addDrawcall((vec3_t){0,0,0}, (vec3_t){0,0,0}, RENDER_TEXTURED, mesh, &texture_from_file, uniforms);
 
-    uniforms.color = packColor(80,240,80);
+    uniforms.color = packColorRGB(80,240,80);
     //addDrawcall( (vec3_t){0,-6,0}, (vec3_t){0,0,0}, RENDER_FILL_TRIANGLE, mesh_plane, 0x0, uniforms);
 
     float radi = 6;
@@ -310,11 +310,11 @@ void update(void) {
                 addDrawcall(f22_pos2, f22_rot2, RENDER_TEXTURED, mesh_f22, &texture_f22, uniforms);
             }
 
-    //vec3_t sponza_pos = {0,0,0};
-    //vec3_t sponza_rot = {0,0,0};
-    //addDrawcall(sponza_pos, sponza_rot, RENDER_TEXTURED, mesh_sponza, &texture_sponza, uniforms);
+//    vec3_t sponza_pos = {0,0,0};
+//    vec3_t sponza_rot = {0,0,0};
+//    addDrawcall(sponza_pos, sponza_rot, RENDER_TEXTURED, mesh_sponza, &texture_sponza, uniforms);
 
-    uniforms.color = packColor(255,32,32);
+    uniforms.color = packColorRGB(255,32,32);
     //addDrawcall( (vec3_t){0,0,0}, (vec3_t){0,0,0}, RENDER_FILL_TRIANGLE, mesh_sphere, NULL, uniforms);
 
 //    int n = 20;
@@ -331,9 +331,6 @@ void update(void) {
 
 static void draw_list_of_triangles(int option, int drawmode, uint32_t color, int first_triangle, int last_triangle, texture_t* dc_texture)
 {
-    //vec3_t objectColor;
-    //unpackColor(color, &objectColor.x, &objectColor.y, &objectColor.z);
-
     if (render_method != -1) drawmode = render_method;
     triangle_t* list = get_triangles_to_render();
     for (int i = first_triangle; i < last_triangle; i++) {
@@ -461,16 +458,14 @@ static void calc_frames_per_second()
 
 static void draw_quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float z, uint32_t color)
 {
-    uint32_t kolors[3];
-    kolors[0] = color;
 #define TORB
 #ifdef TORB
-//    draw_triangle(x0, y0, z, z,
-//                  x1, y1, z, z,
-//                  x2, y2, z, z, kolors);
-//    draw_triangle(x0, y0, z, z,
-//                  x2, y2, z, z,
-//                  x3, y3, z, z, kolors);
+    draw_filled_triangle(x0, y0,
+                  x1, y1,
+                  x2, y2, color);
+    draw_filled_triangle(x0, y0,
+                  x2, y2,
+                  x3, y3, color);
 #else
     draw_filled_triangle_p(x0, y0, x1, y1, x2, y2, color);
     draw_filled_triangle_p(x0, y0, x2, y2, x3, y3, color);
@@ -487,6 +482,62 @@ static void draw_quad(float x0, float y0, float x1, float y1, float x2, float y2
 //    draw_triangle_textured(v0,v1,v2,&texture_from_file,kolors,area2 );
 //    draw_triangle_textured(v0,v2,v3,&texture_from_file,kolors,area2 );
 }
+
+void draw_triangle_grid() {
+    // setups grid stored in gridpoints and mesh
+#define GRID_SIZE 22
+    static vec3_t grid[(GRID_SIZE+1)*(GRID_SIZE+1)];
+    static vec3_t mesh[2*GRID_SIZE*GRID_SIZE][3];
+    float startx=0.f, starty=0.f;
+    float s = pk_window_width();
+    srand(0);
+    for(int i=0; i<GRID_SIZE+1; i++)
+    for(int j=0; j<GRID_SIZE+1; j++) {
+       float x = startx+s*j/GRID_SIZE -10+20*frand() ;// + 2.*noise(xs+.5*animation,ys);
+       float y = starty+s*i/GRID_SIZE -10+20*frand();// + 2.*noise(ys+.5*animation,2*xs);
+       grid[j*(GRID_SIZE+1)+i] = (vec3_t){x,y,0};
+    }
+    int grid_points[3];
+    for(int i=0; i<GRID_SIZE; i++)
+    for(int j=0; j<GRID_SIZE; j++)
+    {
+       int idx0 = 2*(i*GRID_SIZE+j)+0;
+       int idx1 = 2*(i*GRID_SIZE+j)+1;
+
+       int g00 = j*(GRID_SIZE+1)+i;
+       int g10 = j*(GRID_SIZE+1)+(i+1);
+       int g01 = (j+1)*(GRID_SIZE+1)+i;
+       int g11 = (j+1)*(GRID_SIZE+1)+(i+1);
+       grid_points[0] = g00;
+       grid_points[1] = g01;
+       grid_points[2] = g11;
+       int gidx=0; // use this to rotate triangles
+       mesh[idx0][0] = grid[grid_points[(gidx+0)%3]];
+       mesh[idx0][1] = grid[grid_points[(gidx+1)%3]];
+       mesh[idx0][2] = grid[grid_points[(gidx+2)%3]];
+
+       grid_points[0] = g00;
+       grid_points[1] = g11;
+       grid_points[2] = g10;
+       gidx=1; // use this to rotate triangles
+       mesh[idx1][0] = grid[grid_points[(gidx+0)%3]];
+       mesh[idx1][1] = grid[grid_points[(gidx+1)%3]];
+       mesh[idx1][2] = grid[grid_points[(gidx+2)%3]];
+
+       draw_filled_triangle(
+               mesh[idx0][0].x, mesh[idx0][0].y,
+               mesh[idx0][1].x, mesh[idx0][1].y,
+               mesh[idx0][2].x, mesh[idx0][2].y,
+               packColorRGBAf(0.f, 1.f, 0.f, 1.f));
+
+       draw_filled_triangle(
+               mesh[idx1][0].x, mesh[idx1][0].y,
+               mesh[idx1][1].x, mesh[idx1][1].y,
+               mesh[idx1][2].x, mesh[idx1][2].y,
+               packColorRGBAf(1.f, 0.f, 0.f, 1.f));
+    }
+}
+
 int main(int argc, char *argv[])
 {
     (void)&argc;
@@ -532,47 +583,40 @@ int main(int argc, char *argv[])
 
         raster_time_start = SDL_GetTicks();
 
-        int n = 10;
-        for (float i = 0; i < n; i++)
+        //clear_color_buffer( 0u );
+        switch (draw_rectangles)
         {
-            switch (draw_rectangles)
-            {
-            case 0: clear_color_buffer(packColor(0, 163, 232)); break;
+            case 0: clear_color_buffer(packColorRGBA(0, 163, 232, 0)); break;
             case 1:
                 for (int y = 0; y < pk_window_height(); y++)
                     for (int x = 0; x < pk_window_width(); x++)
                     {
-                        setpix(x, y, packColor(255, 0, 0));
+                        setpix(x, y, packColorRGBA(0, 163, 232, 0));
                     }
                 break;
             case 2:
-                for (float i = 0; i < n; i++)
-                {
-                    clear_color_buffer(packColor(255, 0, 0));
-                }
-
+                clear_color_buffer(packColorRGBA(0, 163, 232, 0));
                 break;
             case 3:
             {
-                unsigned val = packColor(255, 0, 0);
+                uint32_t val = packColorRGBA(0, 163, 232, 0);
                 int wxh = pk_window_width() * pk_window_height();
-                for (int i = 0; i < n; i++) {
-                    for (int j = 0; j < wxh; j++)
-                        color_buffer[j] = val;
-                }
+                for (int j = 0; j < wxh; j++)
+                    color_buffer[j] = val;
                 break;
             }
             case 4:
             {
-                draw_quad(0.f, 0.f, pk_window_width(), 0.f, pk_window_width(), pk_window_height(), 0.f, pk_window_height(), 0.0f, packColor(255, 0, 0));
+                draw_quad(0.f, 0.f, pk_window_width(), 0.f, pk_window_width(), pk_window_height(), 0.f, pk_window_height(), 0.0f, packColorRGBA(0, 163, 232, 0) );
                 break;
-            }
             }
         }
 
+        //draw_triangle_grid();
 
         clear_z_buffer( 1.0f );
-        draw_grid();
+        //draw_grid();
+
 
         uint32_t color = 0xFFFFFFFF;
         //if (light.position_proj.w > 0.1f)
@@ -588,6 +632,7 @@ int main(int argc, char *argv[])
             }
 
         }
+
 
 
         iterateDrawcalls();
@@ -620,10 +665,10 @@ int main(int argc, char *argv[])
         gprintf("cam: %.1f, %.1f, %.1f,   %.1f, %.1f\n", camera.position.x, camera.position.y, camera.position.z, camera.posh, camera.posv);
 
         gprintf("l=%d, r=%d, t:%d, b:%d, n:%d, f:%d\n", cull_left, cull_right, cull_top, cull_bottom, cull_near, cull_far);
-        gprintf("draw_rectangles:%d (pgupdown) 1:setpix, 2:clear, 3:memset\n", draw_rectangles);
+        gprintf("draw_rectangles:%d (pgupdown) 0: clear_color_buffer 1:setpix, 2:clear xN, 3:memset, 4:drawquad\n", draw_rectangles);
         unsigned megapixels = pk_window_width() * pk_window_height() * 10;
         unsigned megs = megapixels * sizeof(uint32_t) / 1024 /*bytes -> kB*/ / 1024 /* kB -> MB*/; // Pixel is 32-bit, 4 byte
-        gprintf("fillrate=%d MPIX/frame, megs_per_Frame=%d, GB/second=%f\n", (int) (megapixels/1e6f), megs, (megs*1000.0)/raster_time/1024.0 );
+        gprintf("fillrate=%d MPIX/frame, megs_per_Frame=%d\n", (int) (megapixels/1e6f), megs );
 
         render_color_buffer();
 

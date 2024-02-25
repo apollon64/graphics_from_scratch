@@ -96,8 +96,8 @@ static void interpolate_color(int x, int y, float area2,
         //if(normalized_weights.y < -EPS) printf("out side of b by %f.  %f\n", normalized_weights.y, weights.y);
         //if(normalized_weights.z < -EPS) printf("out side of c by %f.  %f\n", normalized_weights.z, weights.z);
         float sum = normalized_weights.x + normalized_weights.y + normalized_weights.z;
-        if( sum >= (1+EPS) ) setpix(x, y, packColor(255,255,0) );
-        if( sum <= (0-EPS) ) setpix(x, y, packColor(0,255,255) );
+        if( sum >= (1+EPS) ) setpix(x, y, packColorRGB(255,255,0) );
+        if( sum <= (0-EPS) ) setpix(x, y, packColorRGB(0,255,255) );
         return;
     }
 
@@ -146,10 +146,12 @@ typedef struct {
     vec3_t coeffA, coeffB, coeffC;
     vertex_texcoord_t p0, p1, p2;
     texture_t *texture;
+    uint32_t prim_color;
+    int z_test;
 } context_t;
 
 
-static void interpolate_uv(int x, int y, float z, float area2, context_t* context)
+static void interpolate_uv(int x, int y, float z, context_t* context)
 {
     float* z_buffer = pk_z_buffer();
     float buffer_z = z_buffer[(pk_window_width() * y) + x];
@@ -157,7 +159,9 @@ static void interpolate_uv(int x, int y, float z, float area2, context_t* contex
         z_buffer[(pk_window_width() * y) + x] = z;
         //setpix(x,y, packColorFloat(context->coeffA.x,context->coeffA.y,context->coeffA.z) );
         //return;
-        vec3_t weights = barycentric_weights_from_coefficents(x+.5f, y+.5f, context->coeffA, context->coeffB, context->coeffC, area2);
+        float area2 = context->dplane.area2;
+        //vec3_t weights = barycentric_weights_from_coefficents(x+.5f, y+.5f, context->coeffA, context->coeffB, context->coeffC, area2);
+        vec3_t weights = barycentric_weights_from_coefficents(x, y, context->coeffA, context->coeffB, context->coeffC, area2);
         // Also interpolate the value of 1/w for the current pixel
         float one_over_w = context->p0.w * weights.x + context->p1.w * weights.y + context->p2.w * weights.z;
 
@@ -172,19 +176,6 @@ static void interpolate_uv(int x, int y, float z, float area2, context_t* contex
 //        }
 
 //        // Z can be found in multiple ways. From W. From barycentric lerp. From a plane equation at x*a + y*b + c. Or from creating gradients for scanline to step.
-//        float interpolated_z;
-//        if(0)
-//        {
-//            //interpolated_z = p0.z * weights.x + p1.z * weights.y + p2.z * weights.z;
-//            //interpolated_z *= one_over_one_over_w;
-
-//            // Subtract 1 from W since W goes from 1.0 to 0.0, and we want 0-1
-//            interpolated_z = 1.0f - interpolated_z;
-//        } else {
-//            interpolated_z = 1.0f - one_over_w;
-//            //float interpolated_z = 1.0f - (one_over_w*rlen);
-//        }
-
         const float EPS = 0.0001f;
         if ( weights.x < -EPS || weights.y < -EPS || weights.z < -EPS)
         {
@@ -193,8 +184,8 @@ static void interpolate_uv(int x, int y, float z, float area2, context_t* contex
             //if(normalized_weights.y < -EPS) printf("out side of b by %f.  %f\n", normalized_weights.y, weights.y);
             //if(normalized_weights.z < -EPS) printf("out side of c by %f.  %f\n", normalized_weights.z, weights.z);
             float sum = weights.x + weights.y + weights.z;
-            if( sum >= (1+EPS) ) setpix(x, y, packColor(255,255,0) );
-            if( sum <= (0-EPS) ) setpix(x, y, packColor(0,255,255) );
+            if( sum >= (1+EPS) ) setpix(x, y, packColorRGB(255,255,0) );
+            if( sum <= (0-EPS) ) setpix(x, y, packColorRGB(0,255,255) );
             return;
         }
 
@@ -209,8 +200,31 @@ static void interpolate_uv(int x, int y, float z, float area2, context_t* contex
 
         draw_texel(x, y, u, v, context->texture);
     }
+}
+
+static void depthTestAndTexture(int x, int y, float z, float w, float u, float v, context_t* context)
+{
+    int z_pass = 1;
+    float* z_buffer = pk_z_buffer();
+    if (context->z_test) {
+        float buffer_z = z_buffer[(pk_window_width() * y) + x];
+        z_pass = z < buffer_z;
+    }
+
+    if ( z_pass ) {
+        if (context->z_test) z_buffer[(pk_window_width() * y) + x] = z;
+        //setpix(x,y, packColorFloat(context->coeffA.x,context->coeffA.y,context->coeffA.z) );
+        //return;
+        // Also interpolate the value of 1/w for the current pixel
+        float real_w = 1.0f / w;
+        u *= real_w;
+        v *= real_w;
+        draw_texel(x, y, u, v, context->texture);
+        //setpix(x,y, packColorFloat(w,w*u,w*v));
+    }
 
 }
+
 
 
 static inline vec3_t makeEdge(float x0,float y0, float x1, float y1)
@@ -305,13 +319,11 @@ typedef struct {
 } SlopeArray;
 
 /* Define the types of functors */
-typedef void (*GetXYFuncPtr)(const void*, int*, int*);
 typedef Slope (*MakeSlopeFuncPtr)(float from, float to, float scanlines, float);
-typedef void (*DrawScanlineFuncPtr)(int, Slope*, Slope*, context_t* context);
+typedef void (*DrawScanlineFuncPtr)(int, SlopeArray*, SlopeArray*, context_t* context);
 
 /* Define a structure to hold the state of functors */
 typedef struct {
-    GetXYFuncPtr getXY;
     MakeSlopeFuncPtr makeSlope;
     DrawScanlineFuncPtr drawScanline;
 } Functors;
@@ -323,20 +335,21 @@ typedef struct {
 } PairFloat;
 
 /* Function to rasterize a triangle */
-void RasterizeTriangle(const vertex_texcoord_t p0, const vertex_texcoord_t p1, const vertex_texcoord_t p2,
+void RasterizeTriangle(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2,
                        const Functors* functors, context_t *context) {
     float x0, y0, x1, y1, x2, y2, temp;
+    vertex_texcoord_t temp2;
     SlopeArray sides[2];
 
     /* Get x, y coordinates */
-    x0 = p0.x-.5f; y0 = p0.y-.5f;
-    x1 = p1.x-.5f; y1 = p1.y-.5f;
-    x2 = p2.x-.5f; y2 = p2.y-.5f;
+    x0 = p0.x; y0 = p0.y;
+    x1 = p1.x; y1 = p1.y;
+    x2 = p2.x; y2 = p2.y;
 
     /* Sort the points */
-    if (y1 < y0 || (y1 == y0 && x1 < x0)) { SWAP(x0, x1, temp); SWAP(y0, y1, temp); }
-    if (y2 < y0 || (y2 == y0 && x2 < x0)) { SWAP(x0, x2, temp); SWAP(y0, y2, temp); }
-    if (y2 < y1 || (y2 == y1 && x2 < x1)) { SWAP(x1, x2, temp); SWAP(y1, y2, temp); }
+    if (y1 < y0 || (y1 == y0 && x1 < x0)) { SWAP(x0, x1, temp); SWAP(y0, y1, temp); SWAP(p0,p1,temp2); }
+    if (y2 < y0 || (y2 == y0 && x2 < x0)) { SWAP(x0, x2, temp); SWAP(y0, y2, temp); SWAP(p0,p2,temp2); }
+    if (y2 < y1 || (y2 == y1 && x2 < x1)) { SWAP(x1, x2, temp); SWAP(y1, y2, temp); SWAP(p1,p2,temp2); }
 
     /* Refuse to draw arealess triangles */
     if ((int)y0 == (int)y2) return;
@@ -401,15 +414,8 @@ void RasterizeTriangle(const vertex_texcoord_t p0, const vertex_texcoord_t p1, c
                     (*(functors->makeSlope))(p1.v, p2.v,  y2 - y1, y1);
         }
         /* Draw scanline */
-        (*(functors->drawScanline))(y, &sides[0].slopes[0], &sides[1].slopes[0], context);
+        (*(functors->drawScanline))(y, &sides[0], &sides[1], context);
     }
-}
-
-/* Function to get x, y coordinates */
-void GetXY(const void* p, int* x, int* y) {
-    const PairFloat* point = (const PairFloat*)p;
-    *x = (int)point->x;
-    *y = (int)point->y;
 }
 
 /* Function to generate slope */
@@ -417,7 +423,7 @@ Slope MakeSlope(const float from, const float to, float ydelta, float ystart) {
     //int begin = from, end = to;
     float inv_step = 1.f / ydelta;
     Slope slope;
-    slope.begin = ceilf(from);
+    slope.begin = from;
     slope.step = (to - from) * inv_step;
 
     slope.from = from;
@@ -425,94 +431,106 @@ Slope MakeSlope(const float from, const float to, float ydelta, float ystart) {
     slope.inv_slope1 = (to-from) / ydelta;
     return slope;
 }
+
 float LerpSlope(Slope* slope, int y) {
-    return ceilf(slope->from + (y - slope->ystart) * slope->inv_slope1);
+    return slope->from + (y - slope->ystart) * slope->inv_slope1;
 }
 
 /* Function to draw a scanline */
-void DrawScanlineSingleColor(int y, Slope* left, Slope *right) {
-    int x = left->begin, endx = right->begin;
+void DrawScanlineSingleColor(int y, SlopeArray* left, SlopeArray *right, context_t *context) {
+    int x = ceilf(LerpSlope(&left->slopes[0], y)), endx = ceilf(LerpSlope(&right->slopes[0], y));
     for (; x < endx; ++x) {
-        uint32_t color = 0x00FF0000;
-        //uint32_t texel_lit = mix_colors( packColor(tex_r, tex_g, tex_b), color, .5f);
-        //setpix(x,y, texel_lit);
-        setpix(x, y, color);
+        uint32_t old = getpix(x,y);
+        U8 r,g,b,a;
+        unpackColorRGBA(old, &r, &g, &b, &a);
+        if (a) setpix(x, y, packColorRGB(255,255,0) );
+        else   setpix(x, y, context->prim_color);
     }
-    left->begin += left->step;
-    right->begin += right->step;
+    // After the scanline is drawn, update both sides
+    for(int i=0; i<1; i++) {
+        left->slopes[i].begin += left->slopes[i].step;
+        right->slopes[i].begin += right->slopes[i].step;
+    }
 }
 
 /* Function to draw a scanline */
-void DrawScanlineDepth(int y, Slope* left, Slope *right, context_t *context) {
-    //int x = left->begin, endx = right->begin;
+void DrawScanlineTexture(int y, SlopeArray* left, SlopeArray *right, context_t *context) {
+    int x = left->slopes[0].begin, endx = right->slopes[0].begin;
+    float xleft = left->slopes[0].begin - x;
 
-    int x = LerpSlope(left, y), endx = LerpSlope(right, y);
+    // Do differently from Bizqwit as to stay within tri area using ceilf.
+    //int x = ceilf(LerpSlope(&left->slopes[0], y)), endx = ceilf(LerpSlope(&right->slopes[0], y));
+    // Should really do a prestep for props here? Or adj for pixel center?
+
+    // Number of steps = number of pixels on this scanline = endx-x
+    Slope props[3]; //wuv
+    for(unsigned p=0; p<3; ++p)
+    {
+        props[p] = MakeSlope(left->slopes[p+1].begin, right->slopes[p+1].begin, endx-x, left->slopes[0].begin);
+    }
+
 
     for (; x < endx; ++x) {
         float z = getDepth(context->dplane,x,y);
-        interpolate_uv( x, y, z, context->dplane.area2, context);
+//        float w = props[0].begin;
+//        float u = props[1].begin;
+//        float v = props[2].begin;
+        float w = LerpSlope(&props[0], xleft+x);
+        float u = LerpSlope(&props[1], xleft+x);
+        float v = LerpSlope(&props[2], xleft+x);
+
+        depthTestAndTexture( x, y, z, w, u, v, context);
+
+        // After each pixel, update the props by their step-sizes
+        for(int p=0; p<3; p++) props[p].begin += props[p].step;
     }
-    //left->begin += left->step;
-    //right->begin += right->step;
+    // After the scanline is drawn, update both sides
+    for(int i=0; i<4; i++) {
+        left->slopes[i].begin += left->slopes[i].step;
+        right->slopes[i].begin += right->slopes[i].step;
+    }
 }
 
+void draw_filled_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color)
+{
+    vec4_t verts[3];
+    verts[0] =(vec4_t) {x0, y0, 0.f, 1.0f};
+    verts[1] =(vec4_t) {x1, y1, 0.f, 1.0f};
+    verts[2] =(vec4_t) {x2, y2, 0.f, 1.0f};
+    depthplane_t dplane = initDepthPlane(verts);
 
-/* Function to draw a filled single color polygon */
-void DrawFilledSingleColorPolygon(PairFloat p0, PairFloat p1, PairFloat p2, depthplane_t dplane) {
+    vertex_texcoord_t p0 = {x0, y0, 0.f, 1.0f, 0.f, 0.f};
+    vertex_texcoord_t p1 = {x1, y1, 0.f, 1.0f, 0.f, 0.f};
+    vertex_texcoord_t p2 = {x2, y2, 0.f, 1.0f, 0.f, 0.f};
 
+    context_t context;
+    context.p0 = p0;
+    context.p1 = p1;
+    context.p2 = p2;
+    context.dplane = dplane;
+    context.texture = 0x0;
+    context.prim_color = color;
+    context.z_test = false;
+
+    Functors functors;
+    functors.makeSlope = &MakeSlope;
+    functors.drawScanline = &DrawScanlineSingleColor;
+    RasterizeTriangle(p0, p1, p2, &functors, &context);
+    return;
 }
-
 
 void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2,
                             texture_t *texture, uint32_t* colors, float area2)
 {
-    if ( isnan(p0.x) ) {
-        printf("x0 is nan\n");
-        return;
-    }
-    if ( isnan(p0.y) ) {
-        printf("y0 is nan\n");
-        return;
-    }
-    if ( isnan(p1.x) ) {
-        printf("x1 is nan\n");
-        return;
-    }
-    if ( isnan(p1.y) ) {
-        printf("y1 is nan\n");
-        return;
-    }
-    if ( isnan(p2.x) ) {
-        printf("x2 is nan\n");
-        return;
-    }
-    if ( isnan(p2.y) ) {
-        printf("y2 is nan\n");
-        return;
-    }
-
-    if ( isnan(p0.w) ) {
-        printf("w0 is nan\n");
-        return;
-    }
-    if ( isnan(p1.w) ) {
-        printf("w1 is nan\n");
-        return;
-    }
-    if ( isnan(p2.w) ) {
-        printf("w2 is nan\n");
-        return;
-    }
+    assert(!isnan(p0.x)); assert(!isnan(p0.y)); assert(!isnan(p0.z)); assert(!isnan(p0.w));
+    assert(!isnan(p1.x)); assert(!isnan(p1.y)); assert(!isnan(p1.z)); assert(!isnan(p1.w));
+    assert(!isnan(p2.x)); assert(!isnan(p2.y)); assert(!isnan(p2.z)); assert(!isnan(p2.w));
 
     vec4_t verts[3];
     verts[0] =(vec4_t) {p0.x, p0.y, p0.z, 0.0f};
     verts[1] =(vec4_t) {p1.x, p1.y, p1.z, 0.0f};
     verts[2] =(vec4_t) {p2.x, p2.y, p2.z, 0.0f};
     depthplane_t dplane = initDepthPlane(verts);
-    Functors functors;
-    functors.getXY = &GetXY;
-    functors.makeSlope = &MakeSlope;
-    functors.drawScanline = &DrawScanlineDepth;
 
     vec3_t e0 = makeEdge( p0.x,p0.y, p1.x,p1.y );
     vec3_t e1 = makeEdge( p1.x,p1.y, p2.x,p2.y );
@@ -558,9 +576,13 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
     context.p2 = p2;
     context.dplane = dplane;
     context.texture = texture;
+    context.z_test = true;
 
-    RasterizeTriangle(p0, p1, p2, &functors, &context);
-    return;
+//    Functors functors;
+//    functors.makeSlope = &MakeSlope;
+//    functors.drawScanline = &DrawScanlineTexture;
+//    RasterizeTriangle(p0, p1, p2, &functors, &context);
+//    return;
 
     // We need to sort the vertices by y-coordinate ascending (y0 < y1 < y2)
     if ( p0.y > p1.y ) {
@@ -573,20 +595,16 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
         vertex_texcoord_t_swap( &p0, &p1 );
     }
 
-
-
     // go back and up half a pixel
-    float fx0 = p0.x - .5f;
-    float fy0 = p0.y - .5f;
-    float fx1 = p1.x - .5f;
-    float fy1 = p1.y - .5f;
-    float fx2 = p2.x - .5f;
-    float fy2 = p2.y - .5f;
-
+    float fx0 = p0.x;// - .5f;
+    float fy0 = p0.y;// - .5f;
+    float fx1 = p1.x;// - .5f;
+    float fy1 = p1.y;// - .5f;
+    float fx2 = p2.x;// - .5f;
+    float fy2 = p2.y;// - .5f;
 
     ivec2_t clipMin = {0,0};
     ivec2_t clipMax = {pk_window_width(), pk_window_height()};
-
 
     int iy0 = ceilf(fy0);
     int iy1 = ceilf(fy1);
@@ -621,9 +639,6 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
 //    }
 
 
-
-
-
     ///////////////////////////////////////////////////////
     // Render the upper part of the triangle (flat-bottom)
     ///////////////////////////////////////////////////////
@@ -654,7 +669,7 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
                 assert(y < pk_window_height() );
                 // Draw our pixel with the color that comes from the texture
                 float z = getDepth(dplane,x,y);
-                interpolate_uv( x, y, z, dplane.area2, &context);
+                interpolate_uv( x, y, z, &context);
             }
         }
     }
@@ -689,7 +704,7 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
 
                 // Draw our pixel with the color that comes from the texture
                 float z = getDepth(dplane,x,y);
-                interpolate_uv( x, y, z, dplane.area2, &context);
+                interpolate_uv( x, y, z, &context);
             }
         }
     }

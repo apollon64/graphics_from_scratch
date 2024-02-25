@@ -18,7 +18,7 @@
 #include "stb_image_write.h"
 
 void iterateDrawcalls(texture_t texture) {
-    clear_color_buffer( packColor(255,0,255) );
+    clear_color_buffer( packColorRGB(255,0,255) );
     clear_z_buffer( 1.0f );
     draw_grid();
 
@@ -30,10 +30,10 @@ void iterateDrawcalls(texture_t texture) {
     );
 
     // A B G R
-    uint32_t red = packColor(255,0,0);
-    uint32_t green = packColor(0,255,0);
-    uint32_t blue = packColor(0,0,255);
-    uint32_t yellow = packColor(255,255,0);
+    uint32_t red = packColorRGB(255,0,0);
+    uint32_t green = packColorRGB(0,255,0);
+    uint32_t blue = packColorRGB(0,0,255);
+    uint32_t yellow = packColorRGB(255,255,0);
     draw_filled_triangle_p( 0,   0, 100, 100, 0 , 100, red);
     draw_filled_triangle_p( 100, 0, 200, 100, 100 , 100, green);
     draw_filled_triangle_p( 200, 0, 300, 100, 200 , 100, blue);
@@ -42,7 +42,7 @@ void iterateDrawcalls(texture_t texture) {
     for (int i=0; i<4; i++)
         circle(100 + i * 50, 200, 20);
 
-    draw_line(0,0,pk_window_width(), pk_window_height(), packColor(0,0,0) );
+    draw_line(0,0,pk_window_width(), pk_window_height(), packColorRGB(0,0,0) );
 
     moveto(0,0);
     gprintf("Hello world\n");

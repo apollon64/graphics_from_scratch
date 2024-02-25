@@ -2,8 +2,11 @@
 
 #include <math.h>
 #include <assert.h>
-#include "vecmath.h"
 #include <stdio.h>
+#include <stdlib.h>
+
+#include "vecmath.h"
+#include "draw_triangle_torb.h"
 
 
 static uint32_t *color_buffer;
@@ -100,7 +103,7 @@ float clampf(float x, float lo, float hi)
     return x;
 }
 
-uint32_t packColorFloat(float r, float g, float b)
+uint32_t packColorRGBf(float r, float g, float b)
 {
     r = clampf(r, 0.0, 1.0);
     g = clampf(g, 0.0, 1.0);
@@ -114,7 +117,21 @@ uint32_t packColorFloat(float r, float g, float b)
     return ret;
 }
 
-uint32_t packColor(U8 r, U8 g, U8 b)
+uint32_t packColorRGBAf(float r, float g, float b, float a)
+{
+    r = clampf(r, 0.0, 1.0);
+    g = clampf(g, 0.0, 1.0);
+    b = clampf(b, 0.0, 1.0);
+    a = clampf(a, 0.0, 1.0);
+    uint32_t ret = 0;
+    ret |= (U8)(a*255) << 24;
+    ret |= (U8)(b*255) << 16;
+    ret |= (U8)(g*255) << 8;
+    ret |= (U8)(r*255) << 0;
+    return ret;
+}
+
+uint32_t packColorRGB(U8 r, U8 g, U8 b)
 {
     uint32_t ret = 0xFF000000;
     //U8 a = 0;
@@ -125,15 +142,41 @@ uint32_t packColor(U8 r, U8 g, U8 b)
     return ret;
 }
 
-void unpackColor(uint32_t c, float *r, float *g, float *b)
+uint32_t packColorRGBA(U8 r, U8 g, U8 b, U8 a)
+{
+    uint32_t ret = 0;
+    ret |= a << 24;
+    ret |= b << 16;
+    ret |= g << 8;
+    ret |= r << 0;
+    return ret;
+}
+
+void unpackColorRGBf(uint32_t c, float *r, float *g, float *b)
 {
     *b = ( (c >> 16) & 0xFF) / 255.f;
     *g = ( (c >>  8) & 0xFF) / 255.f;
     *r = ( (c >>  0) & 0xFF) / 255.f;
 }
 
-void unpackColorU8(uint32_t c, U8 *r, U8 *g, U8 *b)
+void unpackColorRGBAf(uint32_t c, float *r, float *g, float *b, float *a)
 {
+    *a = ( (c >> 24) & 0xFF) / 255.f;
+    *b = ( (c >> 16) & 0xFF) / 255.f;
+    *g = ( (c >>  8) & 0xFF) / 255.f;
+    *r = ( (c >>  0) & 0xFF) / 255.f;
+}
+
+void unpackColorRGB(uint32_t c, U8 *r, U8 *g, U8 *b)
+{
+    *b = ( (c >> 16) & 0xFF) ;
+    *g = ( (c >>  8) & 0xFF) ;
+    *r = ( (c >>  0) & 0xFF) ;
+}
+
+void unpackColorRGBA(uint32_t c, U8 *r, U8 *g, U8 *b, U8 *a)
+{
+    *a = ( (c >> 24) & 0xFF) ;
     *b = ( (c >> 16) & 0xFF) ;
     *g = ( (c >>  8) & 0xFF) ;
     *r = ( (c >>  0) & 0xFF) ;
@@ -145,8 +188,8 @@ uint32_t mix_colors(uint32_t a, uint32_t b, float factor)
     if (factor < 0) factor = 0;
     if (factor > 1) factor = 1;
     vec3_t va,vb;
-    unpackColor(a, &va.x, &va.y, &va.z);
-    unpackColor(b, &vb.x, &vb.y, &vb.z);
+    unpackColorRGBf(a, &va.x, &va.y, &va.z);
+    unpackColorRGBf(b, &vb.x, &vb.y, &vb.z);
     vec3_t new_color;
     //new_color.x = lerp(va.x, vb.x, factor);
     //new_color.y = lerp(va.y, vb.y, factor);
@@ -154,7 +197,7 @@ uint32_t mix_colors(uint32_t a, uint32_t b, float factor)
     new_color.x = va.x * vb.x;
     new_color.y = va.y * vb.y;
     new_color.z = va.z * vb.z;
-    return packColor(255*new_color.x, 255*new_color.y, 255*new_color.z);
+    return packColorRGB(255*new_color.x, 255*new_color.y, 255*new_color.z);
 }
 
 void setpix(int x, int y, uint32_t color)
@@ -165,6 +208,7 @@ void setpix(int x, int y, uint32_t color)
     if (y>=window_height) return;
     color_buffer[y*window_width+x] = color;
 }
+
 inline void setpix_no_bound_check(int x, int y, uint32_t color)
 {
     color_buffer[y*window_width+x] = color;
@@ -206,14 +250,14 @@ void draw_grid(void)
     for (size_t i = 0; i < window_width; i+=spacingX) {
         for (size_t j = 0; j < window_height; j++) {
             //setcol(127,127,127);
-            setpix(i,j, packColor(75,75,75) );
+            setpix(i,j, packColorRGB(75,75,75) );
         }
     }
 
     for (int y = 0; y < window_height; y+=spacingY) {
         for (int x = 0; x < window_width; x++) {
             //setcol(127,127,127);
-            setpix(x,y, packColor(96,96,96) );
+            setpix(x,y, packColorRGB(96,96,96) );
         }
     }
 }
@@ -232,7 +276,7 @@ void circle(int x, int y, int r)
             int dx = xx-x;
             int dy = yy-y;
             bool inside = (dx*dx + dy*dy) < r*r;
-            if (inside) setpix(xx,yy,packColor(255,255,0));
+            if (inside) setpix(xx,yy,packColorRGB(255,255,0));
         }
     }
 }
@@ -334,8 +378,6 @@ void draw_triangle_lines(int x0, int y0, int x1, int y1, int x2, int y2, uint32_
     draw_line(x1,y1,x2,y2,color);
     draw_line(x2,y2,x0,y0,color);
 }
-
-
 
 
 float ivec2_midpoint( ivec2 p0, ivec2 p1, ivec2 p2, int *x, int *y)
