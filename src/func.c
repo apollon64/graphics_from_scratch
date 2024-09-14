@@ -209,7 +209,7 @@ void setpix(int x, int y, uint32_t color)
     color_buffer[y*window_width+x] = color;
 }
 
-inline void setpix_no_bound_check(int x, int y, uint32_t color)
+void setpix_no_bound_check(int x, int y, uint32_t color)
 {
     color_buffer[y*window_width+x] = color;
 }

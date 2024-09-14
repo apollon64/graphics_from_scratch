@@ -11,13 +11,13 @@
 #include "vecmath.h"
 #include "misc.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
-#pragma GCC diagnostic ignored "-Wunused-result"
-#pragma GCC diagnostic ignored "-Wunused-function"
+//#pragma GCC diagnostic push
+//#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+//#pragma GCC diagnostic ignored "-Wunused-result"
+//#pragma GCC diagnostic ignored "-Wunused-function"
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h" // uses hashmap hmgets, hmputs, hmfree
-#pragma GCC diagnostic pop
+//#pragma GCC diagnostic pop
 
 
 
@@ -68,7 +68,7 @@ static mesh_vertex_t init_mesh_vertex()
     return m;
 }
 
-int min(int a, int b) { return a < b ? a : b; }
+
 
 bool equal_vec3(vec3_t a, vec3_t b)
 {

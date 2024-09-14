@@ -54,7 +54,8 @@ texture_t load_png_texture_data(const char* filename) {
             assert(0);
         }
     }
-    return (texture_t){};
+    texture_t empty ;
+    return empty;
 }
 
 void free_png_texture(texture_t* t)

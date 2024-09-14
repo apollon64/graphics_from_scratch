@@ -1,6 +1,6 @@
 #include "display.h"
 
-#include <SDL2/SDL.h>
+#include <SDL.h>
 
 static int window_width;
 static int window_height;

@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <math.h>
 #define SDL_MAIN_HANDLED
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include "func.h"
 #include "display.h"
 #include "vecmath.h"
@@ -25,7 +25,11 @@
 #include "clip.h" // init frustum
 //int main(){}
 
-// The going could get rough
+// Define a debug print macro
+#define DEBUG_PRINT(...) \
+    do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
+
+// Set up some globals
 bool is_running = false;
 unsigned int previous_frame_time = 0;
 int numframes = 0;
@@ -74,7 +78,7 @@ mesh_t* mesh_sponza;
 texture_t texture_sponza;
 
 static void setup() {
-    puts("SETUP!");
+    DEBUG_PRINT("SETUP!");
     memset(&mouse,0,sizeof(mouse));
     // Initialize render mode and triangle culling method
     render_method = -1;
@@ -558,6 +562,7 @@ int main(int argc, char *argv[])
     }
 */
 
+    DEBUG_PRINT("Boot\n");
     setup();
 
     is_running = init_window();
