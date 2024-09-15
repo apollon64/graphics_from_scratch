@@ -116,24 +116,28 @@ Product {
 
                Properties {
                    //condition: qbs.buildVariant != "debug"
-                   cpp.defines: outer.concat([qbs.buildVariant == "debug" ? "DEBUG" : "RELEASE",
+                   cpp.defines: outer.concat([qbs.buildVariant == "debug" ? "DEBUG=1" : "DEBUG=0",
                                               "MY_COMPILER=\""
                                               +"\\n compilerName          :"+cpp.compilerName
                                               +"\\n architecture          :"+cpp.architecture
                                               +"\\n version               :"+cpp.compilerVersion
+                                              +"\\n commonCompilerFlags   :"+cpp.commonCompilerFlags
+                                              +"\\n cFlags                :"+cpp.cFlags
+                                              +"\\n cLanguageVersion      :"+cpp.cLanguageVersion
                                               +"\\n cppFlags              :"+cpp.cppFlags
                                               +"\\n cxxFlags              :"+cpp.cxxFlags
                                               +"\\n cxxLanguageVersion    :"+cpp.cxxLanguageVersion
                                               +"\\n cxxStandardLibrary    :"+cpp.cxxStandardLibrary
+
                                               +"\\n debugInfoSuffix       :"+cpp.debugInfoSuffix
                                               +"\\n driverLinkerFlags     :"+cpp.driverLinkerFlags
                                               +"\\n dynamicLibraries      :"+cpp.dynamicLibraries
                                               +"\\n endianness            :"+cpp.endianness
                                               +"\\n entryPoint            :"+cpp.entryPoint
-                                              +"\\n exceptionHandlingModel :"+cpp.exceptionHandlingModel
+                                              +"\\n exceptionHandlingModel:"+cpp.exceptionHandlingModel
                                               +"\\n executablePrefix      :"+cpp.executablePrefix
-                                              +"\\n linkerFlags           :"+cpp.linkerFlags
 
+                                              +"\\n linkerFlags           :"+cpp.linkerFlags
                                               +"\\n linkerMode            :"+cpp.linkerMode
                                               +"\\n linkerName            :"+cpp.linkerName
                                               +"\\n linkerVariant         :"+cpp.linkerVariant

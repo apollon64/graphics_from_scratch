@@ -157,7 +157,7 @@ static void interpolate_uv(int x, int y, float z, context_t* context)
     float buffer_z = z_buffer[(pk_window_width() * y) + x];
     if ( z < buffer_z ) {
         z_buffer[(pk_window_width() * y) + x] = z;
-        //setpix(x,y, packColorFloat(context->coeffA.x,context->coeffA.y,context->coeffA.z) );
+        //setpix(x,y, packColorRGB(255,0,0) );
         //return;
         float area2 = context->dplane.area2;
         //vec3_t weights = barycentric_weights_from_coefficents(x+.5f, y+.5f, context->coeffA, context->coeffB, context->coeffC, area2);
@@ -251,7 +251,7 @@ static inline vec3_t makeEdge(float x0,float y0, float x1, float y1)
 
 //}
 
-float getDepth(depthplane_t depthplane, float sample_x, float sample_y) {
+inline float getDepth(depthplane_t depthplane, float sample_x, float sample_y) {
   //  Interpolated result:
   return sample_x * depthplane.a + sample_y * depthplane.b + depthplane.c;
 }
@@ -519,6 +519,63 @@ void draw_filled_triangle(int x0, int y0, int x1, int y1, int x2, int y2, uint32
     return;
 }
 
+void bizqwit_draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2,
+                            texture_t *texture, uint32_t* colors, float area2)
+{
+    vec4_t verts[3];
+    verts[0] =(vec4_t) {p0.x, p0.y, p0.z, 0.0f};
+    verts[1] =(vec4_t) {p1.x, p1.y, p1.z, 0.0f};
+    verts[2] =(vec4_t) {p2.x, p2.y, p2.z, 0.0f};
+    depthplane_t dplane = initDepthPlane(verts);
+
+    p0.v = 1.0f - p0.v;
+    p1.v = 1.0f - p1.v;
+    p2.v = 1.0f - p2.v;
+
+    // pre-divide u,v by w
+    p0.u /= p0.w;
+    p1.u /= p1.w;
+    p2.u /= p2.w;
+
+    p0.v /= p0.w;
+    p1.v /= p1.w;
+    p2.v /= p2.w;
+
+    // pre-divide z by w
+        /*p0.z /= p0.w;
+        p1.z /= p1.w;
+        p2.z /= p2.w;*/
+
+    // make .w the reciprocal of w
+    p0.w = 1.0f / p0.w;
+    p1.w = 1.0f / p1.w;
+    p2.w = 1.0f / p2.w;
+
+    context_t context;
+    //context.coeffA = coeffA;
+    //context.coeffB = coeffB;
+    //context.coeffC = coeffC;
+    context.p0 = p0;
+    context.p1 = p1;
+    context.p2 = p2;
+    context.dplane = dplane;
+    context.texture = texture;
+    context.z_test = true;
+
+    Functors functors;
+    functors.makeSlope = &MakeSlope;
+    functors.drawScanline = &DrawScanlineTexture;
+    RasterizeTriangle(p0, p1, p2, &functors, &context);
+    return;
+}
+
+inline float snap(float v)
+{
+    //return ( (int)(v*256)&0xffffff00)/256.f;
+    float snapsize = 256;
+    return floorf( v * snapsize) / snapsize;
+}
+
 void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_texcoord_t p2,
                             texture_t *texture, uint32_t* colors, float area2)
 {
@@ -531,6 +588,13 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
     verts[1] =(vec4_t) {p1.x, p1.y, p1.z, 0.0f};
     verts[2] =(vec4_t) {p2.x, p2.y, p2.z, 0.0f};
     depthplane_t dplane = initDepthPlane(verts);
+
+    p0.x = snap(p0.x);
+    p0.y = snap(p0.y);
+    p1.x = snap(p1.x);
+    p1.y = snap(p1.y);
+    p2.x = snap(p2.x);
+    p2.y = snap(p2.y);
 
     vec3_t e0 = makeEdge( p0.x,p0.y, p1.x,p1.y );
     vec3_t e1 = makeEdge( p1.x,p1.y, p2.x,p2.y );
@@ -620,24 +684,15 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
         // No height. return early
         return;
     }
-//    vec2_t a = vec2_sub( (vec2_t) {
-//        p1.x,p1.y
-//    }, (vec2_t) {
-//        p2.x,p2.y
-//    } );
-//    vec2_t b = vec2_sub( (vec2_t) {
-//        p0.x,p0.y
-//    }, (vec2_t) {
-//        p2.x,p2.y
-//    } );
-//    float area_triangle_abc = .5f * fabsf((a.x * b.y) - (a.y * b.x));
 
-//    if ( area_triangle_abc <= 1.0f / 256.f)
-//    {
-//        //printf("tiny area. %f, area2/2=%f\n", area_triangle_abc, .5f * area2);
-//        return;
-//    }
+    vec2_t a = vec2_sub( (vec2_t) { p1.x,p1.y }, (vec2_t) { p2.x,p2.y } );
+    vec2_t b = vec2_sub( (vec2_t) { p0.x,p0.y }, (vec2_t) { p2.x,p2.y } );
+    float area_triangle_abc = .5f * fabsf((a.x * b.y) - (a.y * b.x));
 
+    if ( area_triangle_abc <= 1.0f / 256.f)
+    {
+        return;
+    }
 
     ///////////////////////////////////////////////////////
     // Render the upper part of the triangle (flat-bottom)
@@ -649,24 +704,21 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
     if (scan_height) {
         inv_slope_1 = (fx1 - fx0) / (fy1 - fy0);
         inv_slope_2 = (fx2 - fx0) / (fy2 - fy0);
+
+        // starting point for bottom flat is x0 (top)
         for (int y = iy0; y < iy1; y++) {
-            int x_start = ceilf(fx1 + (y - fy1) * inv_slope_1);
-            int x_end = ceilf(fx0 + (y - fy0) * inv_slope_2);
-            x_start = MIN(x_start, clipMax.x);
-            x_end   = MIN(x_end, clipMax.x);
-            x_start = MAX(x_start, clipMin.x);
-            x_end   = MAX(x_end, clipMin.x);
+            int x_start = ceil( fx1 + (y - fy1 ) * inv_slope_1);
+            int x_end = ceil( fx0 + (y - fy0) * inv_slope_2);
 
             if (x_end < x_start) {
                 int_swap(&x_start, &x_end); // swap if x_start is to the right of x_end
             }
-
-
+            x_start = MIN(x_start, clipMax.x);
+            x_end   = MIN(x_end, clipMax.x);
+            x_start = MAX(x_start, clipMin.x);
+            x_end   = MAX(x_end, clipMin.x);
+            //moveto(x_start*PIXEL_SIZE,y*PIXEL_SIZE+.5*PIXEL_SIZE); lineto( (x_end)*PIXEL_SIZE,y*PIXEL_SIZE+.5*PIXEL_SIZE);
             for (int x = x_start; x < x_end; x++) {
-                assert(x>=0);
-                assert(x < pk_window_width() );
-                assert(y>=0);
-                assert(y < pk_window_height() );
                 // Draw our pixel with the color that comes from the texture
                 float z = getDepth(dplane,x,y);
                 interpolate_uv( x, y, z, &context);
@@ -677,11 +729,7 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
     ///////////////////////////////////////////////////////
     // Render the bottom part of the triangle (flat-top)
     ///////////////////////////////////////////////////////
-    inv_slope_1 = 0;
-    inv_slope_2 = 0;
-
     scan_height = iy2 - iy1;
-
     if (scan_height) {
         inv_slope_1 = (fx2 - fx1) / (fy2 - fy1);
         inv_slope_2 = (fx2 - fx0) / (fy2 - fy0);
@@ -697,10 +745,10 @@ void draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, vertex_t
             }
 
             for (int x = x_start; x < x_end; x++) {
-                assert(x>=0);
-                assert(x < pk_window_width() );
-                assert(y>=0);
-                assert(y < pk_window_height() );
+                //assert(x>=0);
+                //assert(x < pk_window_width() );
+                //assert(y>=0);
+                //assert(y < pk_window_height() );
 
                 // Draw our pixel with the color that comes from the texture
                 float z = getDepth(dplane,x,y);

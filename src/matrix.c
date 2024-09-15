@@ -2,10 +2,6 @@
 #include "matrix.h"
 
 mat4_t mat4_identity(void) {
-    // | 1 0 0 0 |
-    // | 0 1 0 0 |
-    // | 0 0 1 0 |
-    // | 0 0 0 1 |
     mat4_t m = {{
             { 1, 0, 0, 0 },
             { 0, 1, 0, 0 },
@@ -14,6 +10,26 @@ mat4_t mat4_identity(void) {
         }
     };
     return m;
+}
+
+// Setup a scaling matrix
+void mat4_set_scale(mat4_t *m, float sx, float sy, float sz) {
+    m->m[0][0] = sx;
+    m->m[0][1] = 0;
+    m->m[0][2] = 0;
+    m->m[0][3] = 0;
+    m->m[1][0] = 0;
+    m->m[1][1] = sy;
+    m->m[1][2] = 0;
+    m->m[1][3] = 0;
+    m->m[2][0] = 0;
+    m->m[2][1] = 0;
+    m->m[2][2] = sz;
+    m->m[2][3] = 0;
+    m->m[3][0] = 0;
+    m->m[3][1] = 0;
+    m->m[3][2] = 0;
+    m->m[3][3] = 1;
 }
 
 mat4_t mat4_make_scale(float sx, float sy, float sz) {

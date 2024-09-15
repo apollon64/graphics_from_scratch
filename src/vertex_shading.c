@@ -662,6 +662,11 @@ void addDrawcall(vec3_t pos, vec3_t rot, enum eRender_method mode, mesh_t* mesh,
     array_push(drawcall_list, dc);
 }
 
+// Perform vertex shading on all draw calls in the drawcall list
+// This function is called by the main loop
+// The option parameter is used to determine which vertex shading function to use
+// 0 = vertexShading
+// 1 = vertexShading2
 void shadeDrawcalls(int option)
 {
     clearTris();

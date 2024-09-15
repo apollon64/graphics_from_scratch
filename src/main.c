@@ -23,7 +23,7 @@
 #include "vertex_shading.h"
 //#include "stretchy_buffer.h"
 #include "clip.h" // init frustum
-//int main(){}
+
 
 // Define a debug print macro
 #define DEBUG_PRINT(...) \
@@ -40,7 +40,8 @@ float time = 0.0f;
 uniforms_t uniforms;
 
 bool sort_faces_by_z_enable = true;
-bool draw_triangles_torb = true;
+int draw_triangles_function = 1;
+int vertex_shading_function = 0;
 int draw_rectangles = 0;
 
 int vertex_time_start = 0;
@@ -98,6 +99,18 @@ static void free_resources(void) {
     free_all_meshes();
 }
 
+/**
+ * @brief Processes user input to control the camera and handle application exit.
+ *
+ * This function checks for specific key presses and performs corresponding actions:
+ * - 'ESC' key: Exits the application.
+ * - 'W' key: Moves the camera forward.
+ * - 'S' key: Moves the camera backward.
+ * - 'A' key: Moves the camera to the left.
+ * - 'D' key: Moves the camera to the right.
+ * - 'Q' key: Rotates the camera to the left.
+ * - 'E' key: Rotates the camera to the right.
+ */
 static void process_input(void) {
     SDL_Event event;
     while ( SDL_PollEvent(&event) )
@@ -152,11 +165,8 @@ static void process_input(void) {
                 key_right = 1;
             if (event.key.keysym.sym == SDLK_LSHIFT)
                 keyShift = 1;
-            if (event.key.keysym.sym == SDLK_t) draw_triangles_torb = !draw_triangles_torb;
-            if (event.key.keysym.sym == SDLK_r)
-            {
-                draw_triangles_torb = false;
-            }
+            if (event.key.keysym.sym == SDLK_t) { draw_triangles_function++; if(draw_triangles_function>2) draw_triangles_function=0; }
+
             break;
 
         case SDL_TEXTINPUT:
@@ -287,13 +297,6 @@ void update(void) {
     uniforms.view_matrix = camera.view_mat;
     uniforms.projection_matrix = camera.proj_mat;
 
-//    for (int i=0; i<5; i++)
-//    for (int j=0; j<5; j++)
-//    {
-//        addDrawcall((vec3_t){i*60,0,-j*60}, (vec3_t){0,0,0}, RENDER_TEXTURED, mesh, &texture_from_file, uniforms);
-//    }
-    //addDrawcall((vec3_t){0,0,0}, (vec3_t){0,0,0}, RENDER_TEXTURED, mesh, &texture_from_file, uniforms);
-
     uniforms.color = packColorRGB(80,240,80);
     //addDrawcall( (vec3_t){0,-6,0}, (vec3_t){0,0,0}, RENDER_FILL_TRIANGLE, mesh_plane, 0x0, uniforms);
 
@@ -391,6 +394,10 @@ static void draw_list_of_triangles(int option, int drawmode, uint32_t color, int
             {
                 draw_triangle_textured(vertices[0], vertices[1], vertices[2], dc_texture, colors, triangle.area2);
             }
+            else if (option==1)
+            {
+                bizqwit_draw_triangle_textured(vertices[0], vertices[1], vertices[2], dc_texture, colors, triangle.area2);
+            }
             else
             {
                 draw_triangle_textured_p(vertices[0], vertices[1], vertices[2], *dc_texture);
@@ -433,8 +440,7 @@ static void iterateDrawcalls(void) {
     int num_draws = array_length(drawcall_list);
     for(int i=0; i<num_draws; i++)
     {
-        int t = draw_triangles_torb ? 0 : 1;
-        draw_list_of_triangles( t, drawcall_list[i].drawmode, drawcall_list[i].uniforms.color, drawcall_list[i].polylist_begin, drawcall_list[i].polylist_end, drawcall_list[i].texture );
+        draw_list_of_triangles( draw_triangles_function, drawcall_list[i].drawmode, drawcall_list[i].uniforms.color, drawcall_list[i].polylist_begin, drawcall_list[i].polylist_end, drawcall_list[i].texture );
     }
 
 
@@ -546,23 +552,19 @@ int main(int argc, char *argv[])
 {
     (void)&argc;
     (void)&argv;
-    //SDL_Log("Hello courses.pikuma.com ! Build %s at %s\n", __DATE__, __TIME__);
-/*
-    const char* mesh_file = "./assets/cube.obj";
-    const char* texture_file = ;
-    for(int i=0; i<argc; i++)
-    {
-        if (i==0) continue;
-        if (EndsWith(argv[i], "obj") ) {
-            mesh_file = argv[i];
-        }
-        if (EndsWith(argv[i], "png") ) {
-            texture_file = argv[i];
-        }
-    }
-*/
+    SDL_Log("Hello courses.pikuma.com ! Build %s at %s\n", __DATE__, __TIME__);
+#if DEBUG==0
+    puts("DBG = 0");
+#endif
+#if DEBUG==1
+       puts("DBG = 1");
+#endif
 
     DEBUG_PRINT("Boot\n");
+
+#ifdef MY_COMPILER
+    printf("MY_COMPILER=%s\n", MY_COMPILER);
+#endif
     setup();
 
     is_running = init_window();
@@ -575,15 +577,13 @@ int main(int argc, char *argv[])
     camera = camera_init((vec3_t){3,7,-2}, 0,0,fov_y, aspect_y, z_near, z_far);
     camera.posv = 3.14159/4.f;
     camera.posh = -3.14159/4.f;
-    //camera = camera_init((vec3_t){-32, 32, 33 }, 2.8, 0.3, fov_y, aspect_y, z_near, z_far);
-
     init_frustum_planes(fov_x, fov_y, z_near, z_far);//, frustum_planes);
 
     while (is_running) {
         process_input();
         update();
         vertex_time_start = SDL_GetTicks();
-        shadeDrawcalls(draw_triangles_torb ? 1 : 0);
+        shadeDrawcalls(vertex_shading_function);
         vertex_time_end = SDL_GetTicks();
 
         raster_time_start = SDL_GetTicks();
@@ -626,7 +626,7 @@ int main(int argc, char *argv[])
         uint32_t color = 0xFFFFFFFF;
         //if (light.position_proj.w > 0.1f)
             //circle(light.position_proj.x, light.position_proj.y, 20 - light.position_proj.z);
-        circle(mouse.x, mouse.y, 10 + draw_triangles_torb*10.f);
+        circle(mouse.x, mouse.y, 10 + draw_triangles_function*5.f);
         if (display_normals_enable)
         {
             color = 0xFF00FF00;
@@ -637,8 +637,6 @@ int main(int argc, char *argv[])
             }
 
         }
-
-
 
         iterateDrawcalls();
         raster_time_end = SDL_GetTicks();
@@ -660,7 +658,9 @@ int main(int argc, char *argv[])
         gprintf("c - cull_method=%d\n", cull_method);
         gprintf("z - sort faces by Z=%d\n", sort_faces_by_z_enable);
         gprintf("n - display_normals_enable=%d\n", display_normals_enable);
-        gprintf("t - torb=%d\n", draw_triangles_torb);
+        gprintf("t - draw_triangles_function=%d (0=t 1=b, 2=p)\n", draw_triangles_function);
+        gprintf("vertex_shading_function=%d\n", vertex_shading_function);
+
         gprintf("num_culled=%d, not culled:%d, tris rendered:%d\n", num_culled, num_not_culled, num_triangles_to_render);
         gprintf("num_cull_zero_area=%d, cull_small:%d\n", num_cull_zero_area, num_cull_small_area);
         gprintf("num_cull_near=%d, far=%d, xy:%d\n", num_cull_near, num_cull_far, num_cull_xy);
