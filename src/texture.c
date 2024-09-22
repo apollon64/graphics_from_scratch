@@ -23,9 +23,8 @@ texture_t load_png_texture_data(const char* filename) {
     assert(upng_get_error(upng) == UPNG_EOK);
 
     if (upng != NULL) {
-        printf("decode:%s\n", filename);
+        printf("attempt decode:%s\n", filename);
         upng_decode(upng);
-        printf("check err:%s\n", filename);
         upng_error err = upng_get_error(upng);
         if (err == UPNG_EOK) {
             unsigned w = upng_get_width(upng);

@@ -74,20 +74,22 @@ mesh_t* mesh_f22;
 texture_t texture_from_file;
 //texture_t brick_tex;
 texture_t texture_f22;
+texture_t texture_wood;
 
 mesh_t* mesh_sponza;
 texture_t texture_sponza;
 
-static void setup() {
+static void load_textures_and_meshes() {
     DEBUG_PRINT("SETUP!");
     memset(&mouse,0,sizeof(mouse));
     // Initialize render mode and triangle culling method
     render_method = -1;
     cull_method = CULL_BACKFACE;
     texture_from_file = load_png_texture_data("./assets/cube.png");
+    texture_wood = load_png_texture_data("./assets/wood.png");
     texture_f22 = load_png_texture_data("./assets/f22.png");
-    mesh_cube = load_mesh_and_texture("./assets/box.obj");
-    mesh_f22 = load_mesh_and_texture("./assets/f22.obj");
+    mesh_cube = mesh_from_obj("./assets/cube.obj");
+    mesh_f22 = mesh_from_obj("./assets/f22.obj");
 //    puts("Loading sponza");
 //    texture_sponza = load_png_texture_data("./assets/sponza2_packed_full.png");
 //    mesh_sponza = load_mesh_and_texture("./assets/sponza2_packed.obj");
@@ -124,8 +126,10 @@ static void process_input(void) {
             if (event.key.keysym.sym == SDLK_ESCAPE)
                 is_running = false;
 
-            if (event.key.keysym.sym == SDLK_1)
-                render_method = RENDER_WIRE_VERTEX;
+            //printf("kd%d\n", event.key.keysym.sym );
+            if (event.key.keysym.sym == 96)
+                vertex_shading_function = 0;
+            if (event.key.keysym.sym == SDLK_1) { vertex_shading_function++; if(vertex_shading_function>1) vertex_shading_function=0; }
             if (event.key.keysym.sym == SDLK_2)
                 render_method = RENDER_WIRE;
             if (event.key.keysym.sym == SDLK_3)
@@ -151,8 +155,8 @@ static void process_input(void) {
                 draw_rectangles++;
             if (event.key.keysym.sym == SDLK_PAGEDOWN)
                 draw_rectangles--;
-            if (draw_rectangles < 0) draw_rectangles = 4;
-            if (draw_rectangles > 4) draw_rectangles = 0;
+            if (draw_rectangles < 0) draw_rectangles = 5;
+            if (draw_rectangles > 5) draw_rectangles = 0;
 
 
             if (event.key.keysym.sym == SDLK_w)
@@ -289,7 +293,7 @@ static void sleep_until_target_fps() {
     previous_frame_time = SDL_GetTicks();
 }
 
-void update(void) {
+void create_drawcalls(void) {
     sleep_until_target_fps();
     time = (float)klock();
 
@@ -324,37 +328,43 @@ void update(void) {
     uniforms.color = packColorRGB(255,32,32);
     //addDrawcall( (vec3_t){0,0,0}, (vec3_t){0,0,0}, RENDER_FILL_TRIANGLE, mesh_sphere, NULL, uniforms);
 
-//    int n = 20;
-//    for(int i=0; i<n; i++)
-//        for(int j=0; j<n; j++)
-//    {
-//            float x = n*3*(-.5+i/(float)n);
-//            float z = n*3*(-.5+j/(float)n);
-//            uniforms.color = packColor(255,255,255);
-//            addDrawcall((vec3_t){x,-5,-20+z}, (vec3_t){0,0,0}, RENDER_TEXTURED, mesh_cube, &brick_tex, uniforms);
-//    }
+   int n = 10;
+   for(int i=0; i<n; i++)
+       for(int j=0; j<n; j++)
+       for(int k=0; k<n; k++)
+   {
+           float x = n*3*(-.5+i/(float)n);
+           float z = n*3*(-.5+j/(float)n);
+           float y = n*3*(-.5+k/(float)n);
+           uniforms.color = packColorRGB(255,255,255);
+           vec3_t pos = {x,-5+y,-40+z};
+           vec3_t rot = {0,0,0};
+           addDrawcall(pos, rot, RENDER_TEXTURED, mesh_cube, &texture_wood, uniforms);
+   }
 
 }
 
-static void draw_list_of_triangles(int option, int drawmode, uint32_t color, int first_triangle, int last_triangle, texture_t* dc_texture)
+static void draw_list_of_triangles(int option, draw_call_t *dc)
 {
+    int drawmode = dc->drawmode;
+    uint32_t color = dc->uniforms.color;
+    int first_triangle = dc->polylist_begin;
+    int last_triangle = dc->polylist_end;
+    texture_t* dc_texture = dc->texture;
+
     if (render_method != -1) drawmode = render_method;
     triangle_t* list = get_triangles_to_render();
     for (int i = first_triangle; i < last_triangle; i++) {
-        triangle_t triangle = list[i];
-        //dc_texture = triangle.tex_hand == 0 ? 0x0 : find_texture_by_handle(triangle.tex_hand);
-        //drawmode = triangle.tex_hand == 0 ? RENDER_FILL_TRIANGLE : RENDER_TEXTURED;
-
-
+        triangle_t* triangle = &list[i];
 
         // Start Per Face Lighting
-        light.direction = vec3_sub(light.position, triangle.center );
+        //light.direction = //vec3_sub(light.position, triangle->center );
         //light.direction = vec3_sub(camera.position, triangle.center );
         vec3_normalize(&light.direction);
 
         //vec4_t normal = vec4_from_vec3(triangle.normal);
         //normal.w = 0;
-        vec3_t normalInterp = triangle.normal;//vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
+        vec3_t normalInterp;// = triangle->normal;//vec3_from_vec4(mat4_mul_vec4(normal_matrix, normal ));
         vec3_normalize(&normalInterp);
         float n_dot_l = vec3_dot(normalInterp, light.direction);
         if (n_dot_l < 0.3) n_dot_l = 0.3f;
@@ -365,16 +375,6 @@ static void draw_list_of_triangles(int option, int drawmode, uint32_t color, int
         uint32_t colors[3] = {color,color,color};
         // End Per Face Lighting
 
-        // Draw filled triangle
-//        if (drawmode == RENDER_FILL_TRIANGLE || drawmode == RENDER_FILL_TRIANGLE_WIRE)
-//        {
-//            draw_triangle(
-//                triangle.points[0].x, triangle.points[0].y, triangle.points[0].z, triangle.points[0].w, // vertex A
-//                triangle.points[1].x, triangle.points[1].y, triangle.points[1].z, triangle.points[1].w, // vertex B
-//                triangle.points[2].x, triangle.points[2].y, triangle.points[2].z, triangle.points[2].w, // vertex C
-//                colors_lit
-//            );
-//        }
 
         // Draw filled triangle
         if (drawmode == RENDER_TEXTURED || drawmode == RENDER_TEXTURED_WIRE)
@@ -382,21 +382,21 @@ static void draw_list_of_triangles(int option, int drawmode, uint32_t color, int
             vertex_texcoord_t vertices[3];
             for(int vtx=0; vtx<3; vtx++)
             {
-                vertices[vtx].x = triangle.points[vtx].x;
-                vertices[vtx].y = triangle.points[vtx].y;
-                vertices[vtx].z = triangle.points[vtx].z;
-                vertices[vtx].w = triangle.points[vtx].w;
-                vertices[vtx].u = triangle.texcoords[vtx].x;
-                vertices[vtx].v = triangle.texcoords[vtx].y;
+                vertices[vtx].x = triangle->points[vtx].x;
+                vertices[vtx].y = triangle->points[vtx].y;
+                vertices[vtx].z = triangle->points[vtx].z;
+                vertices[vtx].w = triangle->points[vtx].w;
+                vertices[vtx].u = triangle->texcoords[vtx].x;
+                vertices[vtx].v = triangle->texcoords[vtx].y;
             }
 
             if (option==0)
             {
-                draw_triangle_textured(vertices[0], vertices[1], vertices[2], dc_texture, colors, triangle.area2);
+                draw_triangle_textured(vertices[0], vertices[1], vertices[2], dc_texture, colors, triangle->area2);
             }
             else if (option==1)
             {
-                bizqwit_draw_triangle_textured(vertices[0], vertices[1], vertices[2], dc_texture, colors, triangle.area2);
+                bizqwit_draw_triangle_textured(vertices[0], vertices[1], vertices[2], dc_texture, colors, triangle->area2);
             }
             else
             {
@@ -407,29 +407,26 @@ static void draw_list_of_triangles(int option, int drawmode, uint32_t color, int
 
         // Draw triangle wireframe
         if (    drawmode == RENDER_WIRE ||
-                drawmode == RENDER_WIRE_VERTEX ||
                 drawmode == RENDER_FILL_TRIANGLE_WIRE ||
                 drawmode == RENDER_TEXTURED_WIRE
            ) {
             draw_triangle_lines(
-                triangle.points[0].x, triangle.points[0].y, // vertex A
-                triangle.points[1].x, triangle.points[1].y, // vertex B
-                triangle.points[2].x, triangle.points[2].y, // vertex C
+                triangle->points[0].x, triangle->points[0].y, // vertex A
+                triangle->points[1].x, triangle->points[1].y, // vertex B
+                triangle->points[2].x, triangle->points[2].y, // vertex C
                 0xFF000000
             );
+
+            draw_rect(triangle->points[0].x - 1, triangle->points[0].y - 1, 3, 3, 0xFFFF00FF); // vertex A
+            draw_rect(triangle->points[1].x - 1, triangle->points[1].y - 1, 3, 3, 0xFFFF00FF); // vertex B
+            draw_rect(triangle->points[2].x - 1, triangle->points[2].y - 1, 3, 3, 0xFFFF00FF); // vertex C
         }
 
-        // Draw triangle vertex points
-        if (drawmode == RENDER_WIRE_VERTEX) {
-            draw_rect(triangle.points[0].x - 3, triangle.points[0].y - 3, 6, 6, 0xFFFF0000); // vertex A
-            draw_rect(triangle.points[1].x - 3, triangle.points[1].y - 3, 6, 6, 0xFFFF0000); // vertex B
-            draw_rect(triangle.points[2].x - 3, triangle.points[2].y - 3, 6, 6, 0xFFFF0000); // vertex C
-        }
     }
 
 }
 
-static void iterateDrawcalls(void) {
+static void pk_fragment_shading_step(void) {
     // Loop all projected triangles and render them
 
     // We can only sort the faces within a mesh, now that all tris are one big list, need to find start offset + end
@@ -440,17 +437,8 @@ static void iterateDrawcalls(void) {
     int num_draws = array_length(drawcall_list);
     for(int i=0; i<num_draws; i++)
     {
-        draw_list_of_triangles( draw_triangles_function, drawcall_list[i].drawmode, drawcall_list[i].uniforms.color, drawcall_list[i].polylist_begin, drawcall_list[i].polylist_end, drawcall_list[i].texture );
+        draw_list_of_triangles( draw_triangles_function, &drawcall_list[i] );
     }
-
-
-    // we could avoid iterating through drawcalls if all drawcall-specific fields were stored with each triangle,
-    // but that increases the size of the triangle structure uneededly (?)
-    // instead of the loop here, we would do:
-    // draw_list_of_triangles( draw_triangles_torb ? 0 : 1, RENDER_TEXTURED, uniforms.color, 0, getNumTris() , 0x0 );
-
-    clearDrawcalls();
-
 }
 
 static void calc_frames_per_second()
@@ -503,8 +491,8 @@ void draw_triangle_grid() {
     srand(0);
     for(int i=0; i<GRID_SIZE+1; i++)
     for(int j=0; j<GRID_SIZE+1; j++) {
-       float x = startx+s*j/GRID_SIZE -10+20*frand() ;// + 2.*noise(xs+.5*animation,ys);
-       float y = starty+s*i/GRID_SIZE -10+20*frand();// + 2.*noise(ys+.5*animation,2*xs);
+       float x = startx+s*j/GRID_SIZE -10+30*frand() ;// + 2.*noise(xs+.5*animation,ys);
+       float y = starty+s*i/GRID_SIZE -10+30*frand();// + 2.*noise(ys+.5*animation,2*xs);
        grid[j*(GRID_SIZE+1)+i] = (vec3_t){x,y,0};
     }
     int grid_points[3];
@@ -548,6 +536,37 @@ void draw_triangle_grid() {
     }
 }
 
+void draw_full_screen_quad()
+{
+    switch (draw_rectangles)
+    {
+        case 1: clear_color_buffer(packColorRGBA(0, 163, 232, 0)); break;
+        case 2:
+            for (int y = 0; y < pk_window_height(); y++)
+                for (int x = 0; x < pk_window_width(); x++)
+                {
+                    setpix_no_bound_check(x, y, packColorRGBA(0, 163, 232, 0));
+                }
+            break;
+        case 3:
+            clear_color_buffer(packColorRGBA(0, 163, 232, 0));
+            break;
+        case 4:
+        {
+            uint32_t val = packColorRGBA(0, 163, 232, 0);
+            int wxh = pk_window_width() * pk_window_height();
+            for (int j = 0; j < wxh; j++)
+                color_buffer[j] = val;
+            break;
+        }
+        case 5:
+        {
+            draw_quad(0.f, 0.f, pk_window_width(), 0.f, pk_window_width(), pk_window_height(), 0.f, pk_window_height(), 0.0f, packColorRGBA(0, 163, 232, 0) );
+            break;
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     (void)&argc;
@@ -565,9 +584,11 @@ int main(int argc, char *argv[])
 #ifdef MY_COMPILER
     printf("MY_COMPILER=%s\n", MY_COMPILER);
 #endif
-    setup();
 
-    is_running = init_window();
+    load_textures_and_meshes();
+
+    is_running = open_sdl_window();
+    alloc_framebuffer();
     if (is_running) pk_init( color_buffer, z_buffer, get_window_width(), get_window_height() );
 
     float aspect_y = (float)get_window_height() / (float)get_window_width();
@@ -577,55 +598,25 @@ int main(int argc, char *argv[])
     camera = camera_init((vec3_t){3,7,-2}, 0,0,fov_y, aspect_y, z_near, z_far);
     camera.posv = 3.14159/4.f;
     camera.posh = -3.14159/4.f;
-    init_frustum_planes(fov_x, fov_y, z_near, z_far);//, frustum_planes);
+    init_frustum_planes(fov_x, fov_y, z_near, z_far);
 
     while (is_running) {
         process_input();
-        update();
+        clearDrawcalls();
+        create_drawcalls();
         vertex_time_start = SDL_GetTicks();
-        shadeDrawcalls(vertex_shading_function);
+            pk_vertex_shading_step(vertex_shading_function);
         vertex_time_end = SDL_GetTicks();
 
         raster_time_start = SDL_GetTicks();
 
-        //clear_color_buffer( 0u );
-        switch (draw_rectangles)
-        {
-            case 0: clear_color_buffer(packColorRGBA(0, 163, 232, 0)); break;
-            case 1:
-                for (int y = 0; y < pk_window_height(); y++)
-                    for (int x = 0; x < pk_window_width(); x++)
-                    {
-                        setpix(x, y, packColorRGBA(0, 163, 232, 0));
-                    }
-                break;
-            case 2:
-                clear_color_buffer(packColorRGBA(0, 163, 232, 0));
-                break;
-            case 3:
-            {
-                uint32_t val = packColorRGBA(0, 163, 232, 0);
-                int wxh = pk_window_width() * pk_window_height();
-                for (int j = 0; j < wxh; j++)
-                    color_buffer[j] = val;
-                break;
-            }
-            case 4:
-            {
-                draw_quad(0.f, 0.f, pk_window_width(), 0.f, pk_window_width(), pk_window_height(), 0.f, pk_window_height(), 0.0f, packColorRGBA(0, 163, 232, 0) );
-                break;
-            }
-        }
-
-        //draw_triangle_grid();
-
+        clear_color_buffer( 0u ); //clear_color_buffer(packColorRGBA(0, 163, 232, 0));
         clear_z_buffer( 1.0f );
-        //draw_grid();
+        //draw_full_screen_quad();
+        pk_fragment_shading_step();
 
 
         uint32_t color = 0xFFFFFFFF;
-        //if (light.position_proj.w > 0.1f)
-            //circle(light.position_proj.x, light.position_proj.y, 20 - light.position_proj.z);
         circle(mouse.x, mouse.y, 10 + draw_triangles_function*5.f);
         if (display_normals_enable)
         {
@@ -638,7 +629,8 @@ int main(int argc, char *argv[])
 
         }
 
-        iterateDrawcalls();
+
+        //draw_triangle_grid();
         raster_time_end = SDL_GetTicks();
 
         moveto(10,10);
@@ -651,31 +643,45 @@ int main(int argc, char *argv[])
         if (raster_time < raster_min) raster_min = raster_time;
         int num_triangles_to_render = getNumTris();
         setfont(8, 16);
-        gprintf("vertexTime:%4d, RasterTime:%4d, [%4d, %4d]\n", vertex_time, raster_time, raster_min, raster_max);
 
-        gprintf("frame %d, fps:%d, culled:%d, trisRender:%d\n", numframes, frames_per_second, num_culled, num_triangles_to_render );
+        draw_quad(0.f, 0.f, pk_window_width(), 0.f,
+                  pk_window_width(), pk_window_height()/2, 0.f, pk_window_height()/2,
+                  0.0f, // z
+                  packColorRGBA(128, 128, 128, 128) );
+        gprintf("vertexTime:%4d, RasterTime:%4d, [%4d, %4d]\n", vertex_time, raster_time, raster_min, raster_max);
+        gprintf("frame %d, fps:%d, tris_issued[%d] tris_culled[%d], trisRender:%d\n", numframes, frames_per_second, vss.num_triangles_issued, vss.num_triangles_culled, num_triangles_to_render );
         gprintf("1,2,3,4,5,6, 1:wire points, 2:wire, 3:fill 4:fill wire, 5:tex, 6:tex wire\n");
         gprintf("c - cull_method=%d\n", cull_method);
         gprintf("z - sort faces by Z=%d\n", sort_faces_by_z_enable);
         gprintf("n - display_normals_enable=%d\n", display_normals_enable);
         gprintf("t - draw_triangles_function=%d (0=t 1=b, 2=p)\n", draw_triangles_function);
-        gprintf("vertex_shading_function=%d\n", vertex_shading_function);
 
-        gprintf("num_culled=%d, not culled:%d, tris rendered:%d\n", num_culled, num_not_culled, num_triangles_to_render);
-        gprintf("num_cull_zero_area=%d, cull_small:%d\n", num_cull_zero_area, num_cull_small_area);
-        gprintf("num_cull_near=%d, far=%d, xy:%d\n", num_cull_near, num_cull_far, num_cull_xy);
-        gprintf("num_cull_few=%d, many:%d\n", num_cull_few, num_cull_many);
-        gprintf("num_cull_backface=%d, num_cull_degenerate(after clip)=%d\n", num_cull_backface, num_cull_degenerate);
+
+        int show_vertex_stats = 1;
+        if (show_vertex_stats)
+        {
+            setfont(8, 8);
+            gprintf("---------VERTEX STATS func%d ------\n", vertex_shading_function);
+            gprintf("%d num_triangles_issued\n", vss.num_triangles_issued);
+            gprintf("%d num_triangles_to_render\n", num_triangles_to_render);
+            gprintf("%d num_triangles_culled\n", vss.num_triangles_culled);
+            gprintf("%d num_cull_backface\n", vss.num_cull_backface);
+            gprintf("%d num_cull_zero_area\n", vss.num_cull_zero_area);
+            gprintf("%d num_cull_small_area\n", vss.num_cull_small_area);
+            gprintf("%d num_cull_degenerate\n", vss.num_cull_degenerate);
+            gprintf("%d num_cull_near\n", vss.num_cull_near);
+            gprintf("%d num_cull_far\n", vss.num_cull_far);
+            gprintf("%d num_cull_xy\n", vss.num_cull_xy);
+            gprintf("%d num_clip_output_degen\n", vss.num_clip_output_degen);
+        }
 
         gprintf("cam: %.1f, %.1f, %.1f,   %.1f, %.1f\n", camera.position.x, camera.position.y, camera.position.z, camera.posh, camera.posv);
-
-        gprintf("l=%d, r=%d, t:%d, b:%d, n:%d, f:%d\n", cull_left, cull_right, cull_top, cull_bottom, cull_near, cull_far);
-        gprintf("draw_rectangles:%d (pgupdown) 0: clear_color_buffer 1:setpix, 2:clear xN, 3:memset, 4:drawquad\n", draw_rectangles);
-        unsigned megapixels = pk_window_width() * pk_window_height() * 10;
-        unsigned megs = megapixels * sizeof(uint32_t) / 1024 /*bytes -> kB*/ / 1024 /* kB -> MB*/; // Pixel is 32-bit, 4 byte
-        gprintf("fillrate=%d MPIX/frame, megs_per_Frame=%d\n", (int) (megapixels/1e6f), megs );
-
-        render_color_buffer();
+        gprintf("draw_rectangles:%d (pgupdown) 0:off, 1:clear_color_buffer 2:setpix, 3:clear xN, 4:memset, 5:draw 2 tris\n", draw_rectangles);
+        unsigned pixel_count = pk_window_width() * pk_window_height();
+        double   megapixels = (double)(pixel_count) / 1e6f;
+        unsigned megs = (pixel_count * sizeof(uint32_t)) / 1024 / 1024; // Pixel is 32-bit, 4 byte
+        gprintf("1 blit fillrate=%f MPIX/frame, megs_per_Frame=%d\n", megapixels, megs );
+        pk_blit_color_to_screen();
 
         calc_frames_per_second();
     }

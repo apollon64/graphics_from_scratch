@@ -8,6 +8,7 @@
 #include "draw_triangle_torb.h"
 
 #include <stddef.h> // NULL
+#include <stdio.h>
 #include <stdlib.h> // qsort
 #include <math.h>
 #include <assert.h>
@@ -23,30 +24,17 @@ static triangle_t *triangles_to_render = NULL;
 static line_t* lines_to_render = NULL;
 static draw_call_t* drawcall_list = NULL;
 
+static vec4_t* shaded_positions = NULL;
+static uint8_t* clip_codes = NULL;
+
 triangle_t *get_triangles_to_render() { return triangles_to_render; }
 line_t* get_lines_to_render() { return lines_to_render; }
 
-float z_near = 0.01f;
+float z_near = 0.5f;
 float z_far = 400.0f;
 bool display_normals_enable = false;
-int num_culled;
-int num_cull_backface;
-int num_cull_zero_area;
-int num_cull_small_area;
-int num_cull_degenerate;
-int num_not_culled;
-int num_cull_near;
-int num_cull_far;
-int num_cull_xy;
-int num_cull_few;
-int num_cull_many;
 
-int cull_left = 0;
-int cull_right = 0;
-int cull_bottom = 0;
-int cull_top = 0;
-int cull_near = 0;
-int cull_far = 0;
+vertex_shading_stats vss;
 
 enum eCull_method cull_method = 0;
 enum eRender_method render_method = 0;
@@ -61,6 +49,9 @@ void freeTris()
     array_free(triangles_to_render);
     array_free(lines_to_render);
     array_free(drawcall_list);
+
+    array_free(shaded_positions);
+    array_free(clip_codes);
 }
 
 static void clearTris()
@@ -76,8 +67,8 @@ void clearDrawcalls()
 
 static void snap(float *v)
 {
-  *v = floorf( (*v) * 128.f)/128.f;
-    //*v = floorf( (*v) * .5)/.5;
+    *v = floorf( (*v) * 128.f)/128.f;
+        //*v = floorf( (*v) * .5)/.5;
 }
 
 vec4_t to_screen_space(vec4_t v)
@@ -99,49 +90,37 @@ vec4_t to_screen_space(vec4_t v)
 
 static bool isBackface(vec2_t v0, vec2_t v1, vec2_t v2, float *area2)
 {
+    vec2_t v2v1 = vec2_sub(v1,v2);
+    vec2_t v2v0 = vec2_sub(v0,v2);
+    float _area2x = (v2v1.y * v2v0.x) - (v2v1.x * v2v0.y);
+    *area2 = fabsf(_area2x);
+    return _area2x <= 0.0f;
+    //return v2v1.x * v2v0.y < v2v1.y * v2v0.x;
+    /*
     vec2_t v0v1 = vec2_sub(v1,v0);
     vec2_t v0v2 = vec2_sub(v2,v0);
     *area2 = fabsf((v0v1.x * v0v2.y) - (v0v1.y * v0v2.x));
     // If this is done after project and window coord transform where we may flip Y then handedness changes
     if (v0v2.x * v0v1.y < v0v2.y * v0v1.x) return 1; // change to < for right hand coords or >= for left... or was it other way round ...
+    */
     return 0;
 }
 
 static void addLineToRender(vec3_t normal, vec3_t center, mat4_t mvp_matrix)
 {
-  float line_length = 20.f / (.5f*pk_window_width());
-  normal = vec3_mul(normal, line_length);
-  vec4_t start = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(center) );
-  vec4_t end = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3( vec3_add(center, normal)) );
-  if (start.w < 0 && end.w < 0) return; // TODO proper 3D line clipping
-  line_t projected_line = {.a = to_screen_space(start), .b = to_screen_space(end) };
-  array_push(lines_to_render, projected_line);
+    float line_length = 20.f / (.5f*pk_window_width());
+    normal = vec3_mul(normal, line_length);
+    vec4_t start = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3(center) );
+    vec4_t end = mat4_mul_vec4_project(mvp_matrix, vec4_from_vec3( vec3_add(center, normal)) );
+    if (start.w < 0 && end.w < 0) return; // TODO proper 3D line clipping
+    line_t projected_line = {.a = to_screen_space(start), .b = to_screen_space(end) };
+    array_push(lines_to_render, projected_line);
 }
 
 void vertexShading2(mesh_t mesh, mat4_t mvp)
 {
-    num_culled = 0;
-    num_cull_backface = 0;
-    num_cull_zero_area = 0;
-    num_cull_small_area = 0;
-    num_cull_degenerate = 0;
-    num_cull_near = 0;
-    num_cull_far = 0;
-    num_not_culled = 0;
-    num_cull_xy = 0;
-    num_cull_few = 0;
-    num_cull_many = 0;
-
-    cull_left = 0;
-    cull_right = 0;
-    cull_bottom = 0;
-    cull_top = 0;
-    cull_near = 0;
-    cull_far = 0;
-
     int n_positions = array_length(mesh.vertpack);
-    vec4_t* shaded_positions = NULL;
-    uint8_t* clip_codes = NULL;
+
     clip_codes = array_hold(clip_codes, n_positions, sizeof(clip_codes[0]) );
     shaded_positions = array_hold(shaded_positions, n_positions, sizeof(shaded_positions[0]) );
 
@@ -150,61 +129,43 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
     for (int i = 0; i < n_positions; i++)
     {
         // Transform our model space xyz to clipcoords
-        vec4_t transformed_vertex = mat4_mul_vec4(mvp,  vec4_from_vec3(mesh.vertpack[i].p));
+        vec4_t clipspace_vertex = mat4_mul_vec4(mvp,  vec4_from_vec3(mesh.vertpack[i].p));
 
         // Dont divide by W yet, since we want to clip in clipcoords
-        float w1 = transformed_vertex.w;
+        float w1 = clipspace_vertex.w;
 
         // Bitmask of which planes vertex is on. 0 if inside all planes.
         uint8_t clip_code =
-                (transformed_vertex.x <= -w1)<<0u |
-                (transformed_vertex.x >= +w1)<<1u |
-                (transformed_vertex.y <= -w1)<<2u |
-                (transformed_vertex.y >= +w1)<<3u |
-                (transformed_vertex.z <= -w1)<<4u |
-                (transformed_vertex.z >= +w1)<<5u;
+            (clipspace_vertex.x <= -w1)<<0u |
+            (clipspace_vertex.x >= +w1)<<1u |
+            (clipspace_vertex.y <= -w1)<<2u |
+            (clipspace_vertex.y >= +w1)<<3u |
+            (clipspace_vertex.z <= -w1)<<4u |
+            (clipspace_vertex.z >= +w1)<<5u;
 
         uint8_t clip_code2 =
-                ((transformed_vertex.x + w1)<0) <<0u |
-                ((-transformed_vertex.x + w1)<0) <<1u |
-                ((transformed_vertex.y + w1)<0) <<2u |
-                ((-transformed_vertex.y + w1)<0) <<3u |
-                ((transformed_vertex.z + w1)<0) <<4u |
-                ((-transformed_vertex.z + w1)<0) <<5u;
+            (( clipspace_vertex.x + w1)<0) <<0u |
+            ((-clipspace_vertex.x + w1)<0) <<1u |
+            (( clipspace_vertex.y + w1)<0) <<2u |
+            ((-clipspace_vertex.y + w1)<0) <<3u |
+            (( clipspace_vertex.z + w1)<0) <<4u |
+            ((-clipspace_vertex.z + w1)<0) <<5u;
         //assert(clip_code == clip_code2);
         clip_code = clip_code2;
 
         clip_codes[i] = clip_code;
-        shaded_positions[i] = transformed_vertex;
+        shaded_positions[i] = clipspace_vertex;
     }
 
-    int n_elems = array_length(mesh.indices);
+    int n_indices = array_length(mesh.indices);
+    vss.num_triangles_issued += n_indices / 3;
 
     // Triangle Assembly and Clipping
-    for (int i = 0; i < n_elems; i+=3) {
+    for (int i = 0; i < n_indices; i+=3 /*step one triangle*/) {
         // Find the 3 indices in vertex buffers that map to a triangle vertices {i0,i1,i2}
         int idx0 = mesh.indices[i+0];
         int idx1 = mesh.indices[i+1];
         int idx2 = mesh.indices[i+2];
-
-        // Find the combined clip by OR-ing all 3 vertex clips together
-        U8 clip0 = clip_codes[idx0];
-        U8 clip1 = clip_codes[idx1];
-        U8 clip2 = clip_codes[idx2];
-        U8 combined_clip = clip0 | clip1 | clip2;
-        U8 combined_clip_and = clip_codes[idx0] & clip_codes[idx1] & clip_codes[idx2]; // bit only set if all 3 have it
-
-        if (combined_clip)
-        {
-            // If all 3 verts are outside one clip plane, we can completely discard this triangle
-            if (combined_clip_and & CLIP_POS_X) { cull_left++; continue;}
-            if (combined_clip_and & CLIP_NEG_X) { cull_right++; continue;}
-            if (combined_clip_and & CLIP_POS_Y) { cull_bottom++; continue;}
-            if (combined_clip_and & CLIP_NEG_Y) { cull_top++; continue;}
-            if (combined_clip_and & CLIP_POS_Z) { cull_near++; continue;}
-            if (combined_clip_and & CLIP_NEG_Z) { cull_far++; continue;}
-        }
-
 
         // Positions are transformed already
         vec4_t transformed_vertices[3] = {
@@ -218,9 +179,30 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
         }
         if (num_zero_w == 3)
         {
-            num_cull_zero_area++;
-            num_culled++;
+            ++vss.num_cull_zero_area;
+            ++vss.num_triangles_culled;
             continue;
+        }
+
+        // Find the combined clip by OR-ing all 3 vertex clips together
+        U8 clip0 = clip_codes[idx0];
+        U8 clip1 = clip_codes[idx1];
+        U8 clip2 = clip_codes[idx2];
+        U8 combined_clip = clip0 | clip1 | clip2;
+        U8 combined_clip_and = clip_codes[idx0] & clip_codes[idx1] & clip_codes[idx2]; // bit only set if all 3 have it
+
+
+        if (combined_clip_and)
+        {
+            ++vss.num_triangles_culled;
+            // If all 3 verts are outside one clip plane, we can completely discard this triangle
+            if (combined_clip_and & CLIP_POS_X) { ++vss.num_cull_xy; continue;}
+            else if (combined_clip_and & CLIP_NEG_X) { ++vss.num_cull_xy; continue;}
+            else if (combined_clip_and & CLIP_POS_Y) { ++vss.num_cull_xy; continue;}
+            else if (combined_clip_and & CLIP_NEG_Y) { ++vss.num_cull_xy; continue;}
+            else if (combined_clip_and & CLIP_POS_Z) { ++vss.num_cull_far; continue;}
+            else if (combined_clip_and & CLIP_NEG_Z) { ++vss.num_cull_near; continue;}
+            //assert(0);
         }
 
         vec3_t face_vertices[3];
@@ -256,13 +238,13 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
                 face_texcoords[0],
                 face_texcoords[1],
                 face_texcoords[2]
-            );
+                );
 
-            clip_polygon2(&polygon);
+            clip_polygon(&polygon, CLIP_CLIP_SPACE /*use clip space*/);
             if (polygon.num_vertices < 3)
             {
-                num_cull_few++;
-                num_culled++;
+                ++vss.num_clip_output_degen;
+                ++vss.num_triangles_culled;
                 continue;
             }
             vec4_t transformed_and_clipped_vertices[3];
@@ -277,15 +259,15 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
                 projected_triangle.z = 0.f;// Z sort
                 for (int j=0; j<3; j++)
                 {
-                    vec4_t projected_point = vec4_project(transformed_and_clipped_vertices[j]);
-                    projected_point = to_screen_space(projected_point);
+                    vec4_t ndc_coord = vec4_project(transformed_and_clipped_vertices[j]);
+                    vec4_t screen_coord = to_screen_space(ndc_coord);
 
-                    projected_triangle.points[j].x = projected_point.x;
-                    projected_triangle.points[j].y = projected_point.y;
-                    projected_triangle.points[j].z = projected_point.z;
-                    projected_triangle.points[j].w = projected_point.w;
+                    projected_triangle.points[j].x = screen_coord.x;
+                    projected_triangle.points[j].y = screen_coord.y;
+                    projected_triangle.points[j].z = screen_coord.z;
+                    projected_triangle.points[j].w = screen_coord.w;
 
-                    projected_triangle.z = fmax( projected_triangle.z, projected_point.z );
+                    projected_triangle.z = fmax( projected_triangle.z, screen_coord.z );
                 }
 
                 float x0 = projected_triangle.points[0].x;
@@ -297,8 +279,8 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
 
                 if ((x0==x1 && y0==y1) || (x1==x2 && y1==y2) || (x2==x0 && y2==y0))
                 {
-                    num_cull_degenerate++;
-                    //num_culled++; // Since we clipped, we may have more tris
+                    ++vss.num_cull_degenerate;
+                    //++vss.num_triangles_culled;; // Since we clipped, we may have more tris
                     continue;
                 }
 
@@ -310,16 +292,16 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
                 vec2_t b = vec2_from_vec4( projected_triangle.points[1] );
                 vec2_t c = vec2_from_vec4( projected_triangle.points[2] );
                 float area2;
-                bool backfacing = !isBackface( a, b, c, &area2 );
+                bool backfacing = isBackface( a, b, c, &area2 );
                 if (cull_method == CULL_BACKFACE && backfacing)
                 {
-                    num_cull_backface++;
-                    num_culled++;
+                    vss.num_cull_backface++;
+                    ++vss.num_triangles_culled;
                     continue;
                 }
                 projected_triangle.area2 = area2;
-                projected_triangle.center = center;
-                projected_triangle.normal = face_normal;
+                //projected_triangle.center = center;
+                //projected_triangle.normal = face_normal; // i removed it
                 // projected_triangle.colors = face_colors[0]; // TODO lerp colors
 
                 array_push(triangles_to_render, projected_triangle);
@@ -331,8 +313,8 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
             projected_triangle.z = 0.f; // Zsort
             for (int j=0; j<3; j++)
             {
-                vec4_t projected_point = vec4_project(transformed_vertices[j]);
-                projected_triangle.points[j] = to_screen_space(projected_point);
+                vec4_t ndc_coord = vec4_project(transformed_vertices[j]);
+                projected_triangle.points[j] = to_screen_space(ndc_coord);
                 projected_triangle.z = fmax( projected_triangle.z, projected_triangle.points[j].z );
             }
 
@@ -344,17 +326,17 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
             vec2_t b = vec2_from_vec4( projected_triangle.points[1] );
             vec2_t c = vec2_from_vec4( projected_triangle.points[2] );
             float area2;
-            bool backfacing = !isBackface( a, b, c, &area2 );
+            bool backfacing = isBackface( a, b, c, &area2 );
             if (cull_method == CULL_BACKFACE && backfacing)
             {
-                num_cull_backface++;
-                num_culled++;
+                ++vss.num_cull_backface;
+                ++vss.num_triangles_culled;
                 continue;
             }
             projected_triangle.area2 = area2;
             assert(area2>0.0f);
-            projected_triangle.center = center;
-            projected_triangle.normal = face_normal;
+            //projected_triangle.center = center;
+            //projected_triangle.normal = face_normal;
 
             array_push(triangles_to_render, projected_triangle);
             if (display_normals_enable)
@@ -366,8 +348,8 @@ void vertexShading2(mesh_t mesh, mat4_t mvp)
 
     } // n indices
 
-    array_free(shaded_positions);
-    array_free(clip_codes);
+    array_size_clear(shaded_positions);
+    array_size_clear(clip_codes);
 }
 
 void vertexShading(mesh_t mesh, uniforms_t uniforms)
@@ -375,24 +357,14 @@ void vertexShading(mesh_t mesh, uniforms_t uniforms)
     // mvp = M V P
     mat4_t mvp = mat4_mul_mat4(uniforms.projection_matrix, uniforms.view_matrix);
     mvp = mat4_mul_mat4(mvp, uniforms.model_matrix);
-
-    num_culled = 0;
-    num_cull_backface = 0;
-    num_cull_zero_area = 0;
-    num_cull_small_area = 0;
-    num_cull_degenerate = 0;
-    num_cull_near = 0;
-    num_cull_far = 0;
-    num_not_culled = 0;
-    num_cull_xy = 0;
-    num_cull_few = 0;
-    num_cull_many = 0;
+    mat4_t modelview_matrix = mat4_mul_mat4(uniforms.view_matrix, uniforms.model_matrix);
 
     // Loop all triangle faces of our mesh
     // It would be more efficient to extract all verts, texcoords, normals from mesh on startup to a mesh VertexBuffer
     // and then transform all vertices in a tight loop
     // and then draw them using an index buffer
     int n_faces = array_length(mesh.faces);
+    vss.num_triangles_issued += n_faces;
     for (int i = 0; i < n_faces; i++) {
         face_t mesh_face = mesh.faces[i];
 
@@ -406,173 +378,137 @@ void vertexShading(mesh_t mesh, uniforms_t uniforms)
         face_texcoords[1] = mesh.texcoords[mesh_face.texcoord_b];
         face_texcoords[2] = mesh.texcoords[mesh_face.texcoord_c];
 
-//        uint32_t face_colors[3];
-  //      face_colors[0] = 0xFFFF0000;//vec3_to_uint32_t(mesh.colors[mesh_face.a ]);
-    //    face_colors[1] = 0xFF00FF00;//vec3_to_uint32_t(mesh.colors[mesh_face.b ]);
-      //  face_colors[2] = 0xFF0000FF;//vec3_to_uint32_t(mesh.colors[mesh_face.c ]);
-
-        vec3_t center = {0,0,0};
-        center = vec3_add(center, face_vertices[0]);
-        center = vec3_add(center, face_vertices[1]);
-        center = vec3_add(center, face_vertices[2]);
-        center = vec3_mul(center, 1.0f / 3.0f);
-
-
-        vec4_t transformed_vertices[3];
+        vec4_t worldspace_vertices[3];
+        vec4_t clipspace_vertices[3];
+        vec4_t ndc_vertices[3];
+        vec4_t screen_vertices[3];
         // Loop all three vertices of this current face and apply transformations
         for (int j = 0; j < 3; j++) {
             // Transform face by concatenated MVP matrix, then divide by W (projection)
             // Multiply the world matrix by the original vector
-            vec4_t transformed_vertex = mat4_mul_vec4(uniforms.model_matrix,  vec4_from_vec3(face_vertices[j]));
-
+            vec4_t model_vertex = vec4_from_vec3(face_vertices[j]);
             // Multiply the view matrix by the vector to transform the scene to camera space
-            transformed_vertex = mat4_mul_vec4(uniforms.view_matrix, transformed_vertex);
+            worldspace_vertices[j] = mat4_mul_vec4(modelview_matrix, model_vertex);
 
             // Save transformed vertex in the array of transformed vertices
-            transformed_vertices[j] = transformed_vertex;
-        }
+            clipspace_vertices[j] = mat4_mul_vec4(mvp, model_vertex);
+            ndc_vertices[j] = vec4_project( clipspace_vertices[j] );
 
-        // Save world space triangle
-        polygon_t polygon = create_polygon_from_triangle(
-            transformed_vertices[0],
-            transformed_vertices[1],
-            transformed_vertices[2],
-            face_texcoords[0],
-            face_texcoords[1],
-            face_texcoords[2]
-        );
+            // Scale and translate the projected points to the middle of the screen
+            screen_vertices[j] = to_screen_space(ndc_vertices[j]);
+        }
 
         int num_zero_w = 0;
         int num_out_near = 0;
         int num_out_far = 0;
+        int num_out_xmin = 0;
+        int num_out_xmax = 0;
+        int num_out_ymin = 0;
+        int num_out_ymax = 0;
 
         for (int j = 0; j < 3; j++) {
-            num_zero_w += transformed_vertices[j].w <= 0.f;
-            num_out_near += transformed_vertices[j].z < z_near;
-            num_out_far += transformed_vertices[j].z > z_far;
+            num_zero_w += ndc_vertices[j].w <= 0.f;
+
+            // Out near far can also be done on NDC by checking outside unit cube.
+            //num_out_near += worldspace_vertices[j].z < z_near;
+            //num_out_far += worldspace_vertices[j].z > z_far;
+            num_out_near += ndc_vertices[j].z < -1.0f;
+            num_out_far += ndc_vertices[j].z > +1.0f;
+
+            num_out_xmin += ndc_vertices[j].x < -1.0f;
+            num_out_xmax += ndc_vertices[j].x > +1.0f;
+            num_out_ymin += ndc_vertices[j].y < -1.0f;
+            num_out_ymax += ndc_vertices[j].y > +1.0f;
         }
 
         if (num_zero_w == 3)
         {
-            num_cull_zero_area++;
-            num_culled++;
+            ++vss.num_cull_zero_area;
+            ++vss.num_triangles_culled;
             continue;
         }
-
-        if (num_out_near == 3)
+        else if (num_out_near == 3)
         {
-            num_cull_near++;
-            num_culled++;
+            ++vss.num_cull_near;
+            ++vss.num_triangles_culled;
             continue;
         }
-
-        if (num_out_far == 3)
+        else if (num_out_far == 3)
         {
-            num_cull_far++;
-            num_culled++;
+            ++vss.num_cull_far;
+            ++vss.num_triangles_culled;
             continue;
         }
-
-        // Before transforming to screen space, find area in world space
-        // Check backface culling
-        //vec3_t vector_a = vec3_from_vec4(transformed_vertices[0]); /*   A   */
-        //vec3_t vector_b = vec3_from_vec4(transformed_vertices[1]); /*  / \  */
-        //vec3_t vector_c = vec3_from_vec4(transformed_vertices[2]); /* C---B */
-
-        // Get the vector subtraction of B-A and C-A
-        //vec3_t vector_ab = vec3_sub(vector_b, vector_a);
-        //vec3_t vector_ac = vec3_sub(vector_c, vector_a);
-        //vec3_t transformed_normal = vec3_cross(vector_ab, vector_ac);
-
-        // Scale and translate the projected points to the middle of the screen
-        for (int j = 0; j < 3; j++) {
-            transformed_vertices[j] = mat4_mul_vec4_project( uniforms.projection_matrix, transformed_vertices[j] );
-            transformed_vertices[j] = to_screen_space(transformed_vertices[j]);
+        else if (num_out_xmin == 3 ||
+                 num_out_xmax == 3 ||
+                 num_out_ymin == 3 ||
+                 num_out_ymax == 3
+                 )
+        {
+            ++vss.num_cull_xy;
+            ++vss.num_triangles_culled;
+            continue;
         }
-
-
-
-        vec3_t face_normal = vec3_cross(
-                            vec3_sub(face_vertices[1],face_vertices[0]),
-                            vec3_sub(face_vertices[2],face_vertices[0])
-                        );
-        vec3_normalize(&face_normal);
-
-        // Find the vector between a point in the triangle and camera origin
-        //vec3_t origin = {0.f, 0.f, 0.f};
-        //vec3_t camera_ray = vec3_sub(origin, vector_a);
-        //float rayDotNormal = vec3_dot(camera_ray, transformed_normal);
 
         // Bypass the triangles looking away from camera
-        float area2 = 0;
+        float area2;
         bool backfacing = isBackface(
-              (vec2_t) {transformed_vertices[0].x, transformed_vertices[0].y},
-              (vec2_t) {transformed_vertices[1].x, transformed_vertices[1].y},
-              (vec2_t) {transformed_vertices[2].x, transformed_vertices[2].y},
-              &area2
-                          );
-        //float area2 = vec3_dot(transformed_normal, transformed_normal);
-        if (cull_method == CULL_BACKFACE && !backfacing)
+            (vec2_t) {screen_vertices[0].x, screen_vertices[0].y},
+            (vec2_t) {screen_vertices[1].x, screen_vertices[1].y},
+            (vec2_t) {screen_vertices[2].x, screen_vertices[2].y},
+            &area2
+            );
+        if (cull_method == CULL_BACKFACE && backfacing)
         {
-            num_cull_backface++;
+            ++vss.num_cull_backface;
+            ++vss.num_triangles_culled;
             continue;
         }
-//        if ( area2 < 0.000001f)
-//        {
-//            // Think of a triangle that is 10 wide, 10 high. it has an area of 100 / 2 = 50
-//            // Triangles can be surprisingly small yet contribute to image
-//            num_cull_small_area++;
-//            num_culled++;
-//            continue;
-//        }
+       // if ( area2 < 0.000001f)
+       // {
+       //     // Think of a triangle that is 10 wide, 10 high. it has an area of 100 / 2 = 50
+       //     // Triangles can be surprisingly small yet contribute to image
+       //     ++vss.num_cull_small_area;
+       //     ++vss.num_triangles_culled;
+       //     continue;
+       // }
 
-//        bool front_facing = rayDotNormal > 0.0f;
-//        //front_facing = !backfacing;
-//        assert(backfacing == !front_facing);
-//        if (cull_method == CULL_BACKFACE && !front_facing)
-//        {
-//            num_cull_backface++;
-//            num_culled++;
-//            continue;
-//        }
+        // Save world space triangle
+        polygon_t polygon = create_polygon_from_triangle(
+            clipspace_vertices[0],
+            clipspace_vertices[1],
+            clipspace_vertices[2],
+            face_texcoords[0],
+            face_texcoords[1],
+            face_texcoords[2]
+            );
+        clip_polygon(&polygon, CLIP_CLIP_SPACE /*use clip space*/);
+        if (polygon.num_vertices < 3)
+        {
+            ++vss.num_clip_output_degen;
+            ++vss.num_triangles_culled;
+            continue;
+        }
 
+        vec4_t transformed_and_clipped_vertices[3];
 
-          clip_polygon(&polygon); //, frustum_planes);
-          if (polygon.num_vertices < 3)
-          {
-              num_cull_few++;
-              num_culled++;
-              continue;
-          }
+        for(int tri=0; tri<polygon.num_vertices - 2; tri++)
+        {
+            transformed_and_clipped_vertices[0] = polygon.vertices[0]; // Notice always first
+            transformed_and_clipped_vertices[1] = polygon.vertices[tri+1];
+            transformed_and_clipped_vertices[2] = polygon.vertices[tri+2];
+            // Since we didnt do project yet, set W to one
+            //transformed_and_clipped_vertices[0].w = 1.0f;
+            //transformed_and_clipped_vertices[1].w = 1.0f;
+            //transformed_and_clipped_vertices[2].w = 1.0f;
 
-          if (polygon.num_vertices==3)
-          {
-              if (display_normals_enable)
-              {
-                  addLineToRender(face_normal, center, mvp);
-              }
-          }
-
-          vec4_t transformed_and_clipped_vertices[3];
-
-            for(int tri=0; tri<polygon.num_vertices - 2; tri++)
+            triangle_t projected_triangle;
+            projected_triangle.z = 0.f;
+            for (int j=0; j<3; j++)
             {
-              transformed_and_clipped_vertices[0] = polygon.vertices[0]; // Notice always first
-              transformed_and_clipped_vertices[1] = polygon.vertices[tri+1];
-              transformed_and_clipped_vertices[2] = polygon.vertices[tri+2];
-              // Since we didnt do project yet, set W to one
-              transformed_and_clipped_vertices[0].w = 1.0f;
-              transformed_and_clipped_vertices[1].w = 1.0f;
-              transformed_and_clipped_vertices[2].w = 1.0f;
-
-              triangle_t projected_triangle;
-              projected_triangle.z = 0.f;
-              for (int j=0; j<3; j++)
-              {
-                vec4_t projected_point = mat4_mul_vec4_project( uniforms.projection_matrix, transformed_and_clipped_vertices[j] );
-
+                vec4_t projected_point = vec4_project( transformed_and_clipped_vertices[j] );
+                //vec4_t projected_point = mat4_mul_vec4_project( uniforms.projection_matrix, transformed_and_clipped_vertices[j] );
                 projected_point = to_screen_space(projected_point);
-                // TODO add culling if all 2 xes or 2 ys same
 
                 projected_triangle.points[j].x = projected_point.x;
                 projected_triangle.points[j].y = projected_point.y;
@@ -581,43 +517,37 @@ void vertexShading(mesh_t mesh, uniforms_t uniforms)
 
                 projected_triangle.z = fmax( projected_triangle.z, projected_point.z );
 
-              }
-
-              float x0 = projected_triangle.points[0].x;
-              float x1 = projected_triangle.points[1].x;
-              float x2 = projected_triangle.points[2].x;
-              float y0 = projected_triangle.points[0].y;
-              float y1 = projected_triangle.points[1].y;
-              float y2 = projected_triangle.points[2].y;
-
-              if ((x0==x1 && y0==y1) || (x1==x2 && y1==y2) || (x2==x0 && y2==y0))
-              {
-                  num_cull_degenerate++;
-                  //num_culled++; // Since we clipped, we may have more tris
-                  continue;
-              }
-
-
-              projected_triangle.texcoords[0] = polygon.texcoords[0];
-              projected_triangle.texcoords[1] = polygon.texcoords[tri+1];
-              projected_triangle.texcoords[2] = polygon.texcoords[tri+2];
-
-              vec2_t vec1 = vec2_sub(
-                        vec2_from_vec4( projected_triangle.points[1] ),
-                        vec2_from_vec4( projected_triangle.points[2] ) );
-              vec2_t vec2 = vec2_sub(
-                        vec2_from_vec4( projected_triangle.points[0] ),
-                        vec2_from_vec4( projected_triangle.points[2] ) );
-
-              float area2 = fabsf((vec1.x * vec2.y) - (vec1.y * vec2.x));
-              projected_triangle.area2 = area2;
-
-              projected_triangle.center = center;
-              projected_triangle.normal = face_normal;
-              // projected_triangle.colors = face_colors[0]; // TODO lerp colors
-
-              array_push(triangles_to_render, projected_triangle);
             }
+
+            float x0 = projected_triangle.points[0].x;
+            float x1 = projected_triangle.points[1].x;
+            float x2 = projected_triangle.points[2].x;
+            float y0 = projected_triangle.points[0].y;
+            float y1 = projected_triangle.points[1].y;
+            float y2 = projected_triangle.points[2].y;
+
+            if ((x0==x1 && y0==y1) || (x1==x2 && y1==y2) || (x2==x0 && y2==y0))
+            {
+                ++vss.num_cull_degenerate;
+                //++vss.num_triangles_culled; // Since we clipped, we may have more tris
+                continue;
+            }
+
+            projected_triangle.texcoords[0] = polygon.texcoords[0];
+            projected_triangle.texcoords[1] = polygon.texcoords[tri+1];
+            projected_triangle.texcoords[2] = polygon.texcoords[tri+2];
+
+            // Do backface check again, because it gives potentially new area
+            bool backfacing = isBackface(
+                (vec2_t) {projected_triangle.points[0].x, projected_triangle.points[0].y},
+                (vec2_t) {projected_triangle.points[1].x, projected_triangle.points[1].y},
+                (vec2_t) {projected_triangle.points[2].x, projected_triangle.points[2].y},
+                &projected_triangle.area2
+                );
+            assert(!backfacing);
+
+            array_push(triangles_to_render, projected_triangle);
+        }
     } // nfaces
 
 }
@@ -667,8 +597,19 @@ void addDrawcall(vec3_t pos, vec3_t rot, enum eRender_method mode, mesh_t* mesh,
 // The option parameter is used to determine which vertex shading function to use
 // 0 = vertexShading
 // 1 = vertexShading2
-void shadeDrawcalls(int option)
+void pk_vertex_shading_step(int option)
 {
+    vss.num_triangles_culled = 0;
+    vss.num_triangles_issued = 0;
+    vss.num_cull_backface = 0;
+    vss.num_cull_zero_area = 0;
+    vss.num_cull_small_area = 0;
+    vss.num_cull_degenerate = 0;
+    vss.num_cull_near = 0;
+    vss.num_cull_far = 0;
+    vss.num_cull_xy = 0;
+    vss.num_clip_output_degen = 0;
+
     clearTris();
     int num_draws = array_length(drawcall_list);
     for(int i=0; i<num_draws; i++)

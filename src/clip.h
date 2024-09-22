@@ -12,6 +12,11 @@ enum {
     FAR_FRUSTUM_PLANE
 };
 
+typedef enum {
+    CLIP_WORLD_SPACE,
+    CLIP_CLIP_SPACE,
+} clip_space;
+
 typedef struct  {
     vec3_t point;
     vec3_t normal;
@@ -23,10 +28,9 @@ typedef struct {
     int num_vertices;
 } polygon_t;
 
-plane_t *get_frustum_planes();
 void init_frustum_planes(float fov_x, float fov_y, float z_near, float z_far);//, plane_t* frustum_planes);
-void clip_polygon_against_plane(polygon_t* polygon, int plane/*, plane_t* frustum_planes*/);
+void clip_polygon_against_plane(polygon_t* polygon, clip_space space, int plane/*, plane_t* frustum_planes*/);
 void clip_polygon_against_plane2(polygon_t* polygon, float a, float b, float c, float d);
-void clip_polygon(polygon_t* polygon/*, plane_t* frustum_planes*/);
+void clip_polygon(polygon_t* polygon, clip_space space);
 void clip_polygon2(polygon_t* polygon);
 polygon_t create_polygon_from_triangle(vec4_t v0, vec4_t v1, vec4_t v2, vec2_t tc0, vec2_t tc1, vec2_t tc2);

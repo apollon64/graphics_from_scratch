@@ -11,6 +11,18 @@ typedef struct {
 } mesh_vertex_t;
 
 typedef struct {
+    unsigned a;
+    unsigned b;
+    unsigned c;
+    unsigned texcoord_a;
+    unsigned texcoord_b;
+    unsigned texcoord_c;
+    unsigned normal_a;
+    unsigned normal_b;
+    unsigned normal_c;
+} face_t;
+
+typedef struct {
     vec3_t* vertices; // dynamic array of vertices
     vec3_t* normals; // dynamic array
     vec2_t* texcoords; // dynamic array of texture coordinates
@@ -19,7 +31,7 @@ typedef struct {
     int32_t* indices;
 } mesh_t;
 
-mesh_t *load_mesh_and_texture(const char* filename);
+mesh_t *mesh_from_obj(const char* filename);
 void free_all_meshes();
 
 mesh_t load_obj_file_data(const char* filename);

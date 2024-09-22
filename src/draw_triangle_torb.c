@@ -205,14 +205,15 @@ static void interpolate_uv(int x, int y, float z, context_t* context)
 static void depthTestAndTexture(int x, int y, float z, float w, float u, float v, context_t* context)
 {
     int z_pass = 1;
-    float* z_buffer = pk_z_buffer();
+    float* z_buffer = &pk_z_buffer()[(pk_window_width() * y) + x];
     if (context->z_test) {
-        float buffer_z = z_buffer[(pk_window_width() * y) + x];
-        z_pass = z < buffer_z;
+        if (z < 0) z = 0.f;
+        if (z > 1) z = 1.f;
+        z_pass = z < *z_buffer;
     }
 
     if ( z_pass ) {
-        if (context->z_test) z_buffer[(pk_window_width() * y) + x] = z;
+        if (context->z_test) (*z_buffer) = z;
         //setpix(x,y, packColorFloat(context->coeffA.x,context->coeffA.y,context->coeffA.z) );
         //return;
         // Also interpolate the value of 1/w for the current pixel
@@ -220,7 +221,8 @@ static void depthTestAndTexture(int x, int y, float z, float w, float u, float v
         u *= real_w;
         v *= real_w;
         draw_texel(x, y, u, v, context->texture);
-        //setpix(x,y, packColorFloat(w,w*u,w*v));
+
+        //setpix(x,y, packColorRGBAf(z,z,z,1.f)); // Visualize Z
     }
 
 }
@@ -441,10 +443,22 @@ void DrawScanlineSingleColor(int y, SlopeArray* left, SlopeArray *right, context
     int x = ceilf(LerpSlope(&left->slopes[0], y)), endx = ceilf(LerpSlope(&right->slopes[0], y));
     for (; x < endx; ++x) {
         uint32_t old = getpix(x,y);
-        U8 r,g,b,a;
-        unpackColorRGBA(old, &r, &g, &b, &a);
-        if (a) setpix(x, y, packColorRGB(255,255,0) );
-        else   setpix(x, y, context->prim_color);
+        U8 target[4];
+        unpackColorRGBA(old, &target[0], &target[1], &target[2], &target[3]);
+        U8 src[4];
+        unpackColorRGBA(context->prim_color, &src[0], &src[1], &src[2], &src[3]);
+
+        if (src[3] != 0 && src[3] != 255)
+        {
+            U8 res[4];
+            for(int c=0; c<3; c++) {
+                float tmp = target[c]/255.f * src[c]/255.f;
+                res[c] = clampf(tmp, 0, 1) * 255;
+            }
+            setpix(x, y, packColorRGB(res[0], res[1], res[2]) );
+        }
+        else
+        setpix(x, y, context->prim_color);
     }
     // After the scanline is drawn, update both sides
     for(int i=0; i<1; i++) {

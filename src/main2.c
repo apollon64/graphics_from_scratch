@@ -20,7 +20,6 @@
 void iterateDrawcalls(texture_t texture) {
     clear_color_buffer( packColorRGB(255,0,255) );
     clear_z_buffer( 1.0f );
-    draw_grid();
 
     draw_triangle_textured_p(
     (vertex_texcoord_t){ 0,   pk_window_height()-0, 0.0f,   1.0f, 0.0f, 0.0f },

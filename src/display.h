@@ -11,8 +11,9 @@
 extern uint32_t *color_buffer;
 extern float* z_buffer;
 
-bool init_window(void);
-void render_color_buffer(void);
+bool open_sdl_window(void);
+void alloc_framebuffer();
+void pk_blit_color_to_screen(void);
 void destroy_window(void);
 int get_window_width();
 int get_window_height();

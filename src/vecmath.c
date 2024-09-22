@@ -179,3 +179,7 @@ vec3_t vec3_from_vec4(vec4_t v) {
         v.x, v.y, v.z
     };
 }
+
+float vec4_dot(vec4_t a, vec4_t b) {
+    return (a.x * b.x) + (a.y * b.y) + (a.z * b.z) + (a.w * b.w);
+}

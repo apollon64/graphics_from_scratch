@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "texture.h"
 #include "triangle.h"
 
 void pk_init(uint32_t *user_color_buffer, float* user_z_buffer, int xres, int yres);
@@ -25,7 +24,6 @@ void setpix(int x, int y, uint32_t color);
 uint32_t getpix(int x, int y);
 void setpix_no_bound_check(int x, int y, uint32_t color);
 void draw_rect(int x, int y, int width, int height, uint32_t color);
-void draw_grid(void);
 void circle(int x, int y, int r);
 void draw_line(int x0, int y0, int x1, int y1, uint32_t color);
 void draw_line3d(int x0, int y0, float z0, int x1, int y1, float z1, uint32_t color);

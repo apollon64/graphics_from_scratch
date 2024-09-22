@@ -9,7 +9,6 @@
 
 #include "array.h"
 #include "vecmath.h"
-#include "misc.h"
 
 //#pragma GCC diagnostic push
 //#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
@@ -23,7 +22,7 @@
 
 static mesh_t** mesh_list = NULL;
 
-mesh_t* load_mesh_and_texture(const char* filename)
+mesh_t* mesh_from_obj(const char* filename)
 {
     mesh_t m = load_obj_file_data(filename);
     mesh_t* mptr = (mesh_t*) malloc(sizeof(mesh_t));
@@ -263,7 +262,7 @@ mesh_t load_obj_file_data(const char* filename) {
     int texcoord_len = array_length(mesh.texcoords);
     int faces_len = array_length(mesh.faces);
     // An obj mesh may be optimized by finding vertices that are same
-    fprintf(stdout, "loaded mesh, verts:%d, normals:%d, texcoords:%d, faces:%d \n", vertex_len, normals_len, texcoord_len, faces_len);
+    fprintf(stdout, "loaded mesh [%s], verts:%d, normals:%d, texcoords:%d, faces:%d \n", filename, vertex_len, normals_len, texcoord_len, faces_len);
     fclose(file);
 
     printf("the element buffer:%d and vertpack: %d\n", array_length( mesh.indices ), array_length( mesh.vertpack ) );

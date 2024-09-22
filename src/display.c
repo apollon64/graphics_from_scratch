@@ -10,7 +10,7 @@ SDL_Texture* color_buffer_texture = NULL;
 uint32_t *color_buffer = NULL;
 float *z_buffer = NULL;
 
-bool init_window(void) {
+bool open_sdl_window(void) {
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
         SDL_Log("Error initing SDL.\n");
         return false;
@@ -19,11 +19,12 @@ bool init_window(void) {
     // Set size of SDL window to screen size
     SDL_DisplayMode display_mode;
     SDL_GetDisplayMode(0, 0, &display_mode);
-    int fullscreen_width = 800;//display_mode.w;
-    int fullscreen_height = 600;//display_mode.h;
+    int fullscreen_width = 1000;//display_mode.w;
+    int fullscreen_height = 1000;//display_mode.h;
     window_width = fullscreen_width;
     window_height = fullscreen_height;
     SDL_Log("set window %dx%d\n", fullscreen_width, fullscreen_height);
+    SDL_Log("set render %dx%d\n", fullscreen_width, fullscreen_height);
 
     int posX=SDL_WINDOWPOS_CENTERED;
     int posY=SDL_WINDOWPOS_CENTERED;
@@ -46,11 +47,6 @@ bool init_window(void) {
         return false;
     }
 
-    int c_bytes = sizeof(uint32_t) * window_width * window_height;
-    int z_bytes = sizeof(float) * window_width * window_height;
-    color_buffer = (uint32_t*)malloc(c_bytes);
-    z_buffer = (float*)malloc(z_bytes);
-
     color_buffer_texture = SDL_CreateTexture(
                                renderer,
                                SDL_PIXELFORMAT_RGBA32,
@@ -61,17 +57,16 @@ bool init_window(void) {
 
     return true;
 }
-void render_color_buffer(void) {
 
-    // Display Z buffer as color
-//    for(int j=0; j<window_height; j++)
-//    for(int i=0; i<window_width; i++)
-//    {
-//        U8 z = (U8)( 255*z_buffer[window_width*j+i] );
-//        color_buffer[window_width*j+i] = packColor(z,z,z);
-//    }
+void alloc_framebuffer()
+{
+    int c_bytes = sizeof(uint32_t) * window_width * window_height;
+    int z_bytes = sizeof(float) * window_width * window_height;
+    color_buffer = (uint32_t*)malloc(c_bytes);
+    z_buffer = (float*)malloc(z_bytes);
+}
 
-
+void pk_blit_color_to_screen(void) {
     SDL_UpdateTexture(
         color_buffer_texture,
         NULL, // rect
@@ -82,6 +77,7 @@ void render_color_buffer(void) {
     SDL_RenderCopy(renderer, color_buffer_texture, NULL, NULL);
     SDL_RenderPresent(renderer);
 }
+
 void destroy_window(void)
 {
     free(color_buffer);
