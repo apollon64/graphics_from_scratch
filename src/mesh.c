@@ -9,6 +9,7 @@
 
 #include "array.h"
 #include "vecmath.h"
+#include "minmax.h"
 
 //#pragma GCC diagnostic push
 //#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"

@@ -6,6 +6,8 @@
 #include "func.h"
 #include "vecmath.h"
 
+static int abs(int x) { return x < 0 ? -x : x; }
+
 static void draw_pixel(int x, int y, uint32_t color) {
     setpix(x,y,color);
 }

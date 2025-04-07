@@ -253,7 +253,7 @@ static inline vec3_t makeEdge(float x0,float y0, float x1, float y1)
 
 //}
 
-inline float getDepth(depthplane_t depthplane, float sample_x, float sample_y) {
+static float getDepth(depthplane_t depthplane, float sample_x, float sample_y) {
   //  Interpolated result:
   return sample_x * depthplane.a + sample_y * depthplane.b + depthplane.c;
 }
@@ -583,7 +583,7 @@ void bizqwit_draw_triangle_textured(vertex_texcoord_t p0, vertex_texcoord_t p1, 
     return;
 }
 
-inline float snap(float v)
+static float snap(float v)
 {
     //return ( (int)(v*256)&0xffffff00)/256.f;
     float snapsize = 256;

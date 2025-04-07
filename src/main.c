@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <math.h>
 #define SDL_MAIN_HANDLED
-#include <SDL.h>
+#include <SDL2/SDL.h>
 #include "func.h"
 #include "display.h"
 #include "vecmath.h"
@@ -24,6 +24,7 @@
 //#include "stretchy_buffer.h"
 #include "clip.h" // init frustum
 
+#define DEBUG 0
 
 // Define a debug print macro
 #define DEBUG_PRINT(...) \

@@ -34,9 +34,8 @@ COMPILER_FLAGS = -pipe -Wall -Wextra -Wno-double-promotion -Wno-sign-compare -O0
 COMPILER_FLAGS := $(COMPILER_FLAGS) -std=c99 -m64
 #COMPILER_FLAGS := $(COMPILER_FLAGS) -std=c++0x -fpermissive # compile as C++
 
-COMPILER_FLAGS_RELEASE = -pipe -Wall -Wextra -Wdouble-promotion -Wno-sign-compare -O3 -DNDEBUG
-COMPILER_FLAGS_RELEASE := $(COMPILER_FLAGS_RELEASE) -std=c99 -O2
-#COMPILER_FLAGS_RELEASE := $(COMPILER_FLAGS) -std=c++0x -fpermissive -Os #-ffast-math -Os # compile as C++
+COMPILER_FLAGS_RELEASE = -std=c99 -pipe -Wall -Wextra -Wdouble-promotion -Wno-sign-compare -O3 -DNDEBUG
+#COMPILER_FLAGS_RELEASE := $(COMPILER_FLAGS) -std=c++0x -fpermissive -O3 #-ffast-math -Os # compile as C++
 
 #LINKER_FLAGS specifies the libraries we're linking against
 #LINKER_FLAGS = -lmingw32 -lSDL2main -lSDL2 -lm
